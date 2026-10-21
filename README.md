@@ -79,12 +79,13 @@ so you only load a file again after a rebuild (or a browser reset).
 | `LICENSE` | The GNU General Public License, version 3 - the license of the trainer's own code, and of Stockfish. |
 | `CREDITS.md` | Who made what - Stockfish, the pieces, the font, the icons, Lichess, python-chess, chess.js - and their licenses. |
 | `NotoSans-OFL.txt` | The font's license, which has to go wherever `NotoSans.ttf` goes. |
+| `index.html` | For GitHub Pages only: sends the site's short address (`pawn7676.github.io/trainer/`) on to `trainer.html`. Without it, GitHub Pages shows this README there. |
 
 The trainer stops with an error if any of its files but the Stockfish
-ones and the three license files is missing. The page is opened from
-the Code app's local server (localhost); the engine saves its own copy
-of the Stockfish files in the browser while that server is running, so
-it keeps working afterwards.
+ones, the three license files and `index.html` is missing. The page is
+opened from the Code app's local server (localhost); the engine saves
+its own copy of the Stockfish files in the browser while that server is
+running, so it keeps working afterwards.
 
 ### The scripts (Python 3 + python-chess: `pip install chess`)
 
