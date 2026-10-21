@@ -150,11 +150,13 @@
      the comment box at one line ([#13]).) */
   --one-line-height: calc(var(--text-font-size) * var(--text-line-height) + 2 * var(--box-pad-y) + 2 * var(--box-border-width));
 
-  /* Extra space above the board and the boxes, on top of the --gap
-     every edge has ([#4]). 0 in a Safari tab, where Safari's own
-     toolbar sits above the page. The home-screen web app sets its
-     own value, just below this block. */
-  --top-inset:24px;
+  /* Extra space pushed above the board+comment box in the
+     full-screen home-screen web app, to clear the iPadOS status
+     bar area (clock/wifi/battery) whose translucent blur otherwise
+     overlaps the top of the board - on top of the --gap every edge
+     has ([#4]). Tweak this number directly if the blur/status bar
+     still overlaps. */
+  --top-inset: 0px; /* set to 24px for the web-app version */
 
   --bg:                    #161512;
   --panel:                 #2b2a27;
@@ -243,16 +245,6 @@
   /* badge glyph - follows the page font by default */
   --badge-font-family: var(--font-family);
   --badge-font-weight: 700;
-}
-
-/* The full-screen home-screen web app (display-mode: standalone -
-   the page opened from its Home Screen icon, not a Safari tab):
-   room for the iPadOS status bar (clock/wifi/battery), whose
-   translucent blur otherwise overlaps the top of the board. The
-   page picks the right value by itself - nothing to change between
-   the two. Tweak this number if the blur still overlaps. */
-@media (display-mode: standalone) {
-  :root { --top-inset: 100px; }
 }
 
 /* ------------------------------------------------------------
