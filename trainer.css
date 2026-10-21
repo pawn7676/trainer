@@ -154,7 +154,7 @@
      every edge has ([#4]). 0 in a Safari tab, where Safari's own
      toolbar sits above the page. The home-screen web app sets its
      own value, just below this block. */
-  --top-inset: 0px;
+  --top-inset:24px;
 
   --bg:                    #161512;
   --panel:                 #2b2a27;
