@@ -1,0 +1,1263 @@
+/*==================================================================
+ * trainer.css — LOOK & FEEL for the trainer page
+ *
+ * Every style on the page. All colors, fonts and sizes you'd want to
+ * change are settings in [#2]; the rest of this file only uses them.
+ * The sections follow the page, top-left to bottom-right: the board,
+ * the button row and the chapter row under it, then the boxes beside
+ * the board. Last comes the narrow-screen layout, which overrides the
+ * rest.
+ *
+ * Linked from trainer.html's <head>:
+ *   <link rel="stylesheet" href="trainer.css">
+ * Keep it in the same folder as the trainer page - without it the
+ * page is unstyled (errors.js says so, errors.js [#3]).
+ *
+ * INDEX
+ *   [#1]  FONT FILE ............ loads Noto Sans from NotoSans.ttf
+ *   [#2]  THEME TOKENS ......... board size, fonts, ALL colors
+ *   [#3]  BASE & RESET ......... global defaults, .hidden
+ *   [#4]  PAGE LAYOUT .......... the page grid: board, boxes,
+ *                                buttons, chapter row
+ *   [#5]  BOARD FRAME .......... canvas, resize handle, drag ghost
+ *   [#6]  PROMOTION PICKER ..... the 4-piece choice overlay
+ *   [#7]  CONTROL BUTTONS ...... the button row under the board
+ *                                and the boxes
+ *   [#8]  CHAPTER ROW .......... Chapter dropdown; the Library's
+ *                                color square and Study dropdown
+ *   [#9]  SETTINGS PANEL ....... gear menu; its rows, switches and
+ *                                date arrows; the mode menu
+ *   [#10] BOXES ................ one look for every box: the
+ *                                boxes beside the board, the
+ *                                dropdowns
+ *   [#11] ENGINE LINES ......... the engine's lines, and the one-row
+ *                                messages in their place
+ *   [#12] MOVE LIST & EXPLORER . move pairs, move colors, analysis
+ *                                line; the opening explorer under it
+ *   [#13] COMMENT & ALT BOXES .. comment box, ALT box, scroll cue
+ *   [#14] ERROR MESSAGES ....... errors in the comment box; the
+ *                                cover that stops the page
+ *   [#15] NEXT ................. the >> button at the end of a line
+ *   [#16] STACKED LAYOUT ....... narrow screens (under 820px)
+ *==================================================================*/
+
+/* ------------------------------------------------------------
+   [#1] FONT FILE — registers "Noto Sans" from the external
+   NotoSans.ttf, which must sit in the same folder as this
+   page. Downloaded from Google Fonts (which ships it as
+   NotoSans-VariableFont_wdth,wght.ttf), renamed to NotoSans.ttf.
+   It's a variable font, so this one file covers every weight the
+   page uses (300-900, including the 450 comment weight and the
+   700 badge glyphs). There is no italic file, so italic text
+   (e.g. the empty-comment placeholder) is slanted by the browser
+   instead. If the file is missing, the page quietly falls back to
+   the system fonts listed in --font-family in [#2].
+   ------------------------------------------------------------ */
+@font-face {
+  font-family: "Noto Sans";
+  src: url("NotoSans.ttf") format("truetype");
+  font-weight: 100 900;
+  font-stretch: 62.5% 100%;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ------------------------------------------------------------
+   [#2] THEME TOKENS — board/UI sizing, fonts, and all colors.
+   ------------------------------------------------------------ */
+:root {
+  /* ----- SETTINGS ----- */
+  /* the chessboard's starting size. Dragging the grip at its corner
+     changes it (and the size is saved); how big or small it can get
+     is set by the buttons under it - no button may get narrower than
+     its icon (board.js [#13]) */
+  --board-size: 500px;
+  /* size of the << < > >> symbols ([#7]) - they stay centered in the
+     button at any size */
+  --nav-glyph-size: 3rem;
+  /* THE PAGE HAS TWO FONTS:
+       1. THE TEXT - Noto Sans (Lichess itself uses it), at the
+          --text-* settings below: the comment box and the ALT box
+          ([#13]), the chapter row's dropdowns ([#8]), the Settings
+          and Mode menus ([#9]), and the error messages ([#14]). It's
+          the page's own font, so anything else not set to the
+          lists' font below gets it too.
+       2. THE LISTS - monospaced (--mono-font-family, below), for
+          everything inside the move list, the engine's lines and the
+          explorer, their messages included, so their columns line up
+          ([#11], [#12]).
+     The few deliberate exceptions: the << < > >> symbols
+     (--nav-glyph-size, above), the percentages on the explorer's
+     results bar ([#12] - they have to fit the bar), and the board's
+     own a-h / 1-8 labels and badges, sized with the board (board.js
+     [#6], [#7]). */
+  --font-family: "Noto Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --text-font-size: 1.35rem;
+  /* weight: 400 normal, 500-600 medium, 700 bold */
+  --text-font-weight: 450;
+  /* line spacing (e.g. 1.2 = tight, 1.8 = airy) */
+  --text-line-height: 1.45;
+  /* Spacing of the moves in the move list ([#12]). Smaller =
+     more moves per line (and more room for the comment box). */
+  /* space inside each move's box, either side of its text (the
+     current-move highlight) */
+  --move-pad: 4px;
+  /* extra space between one move's box and the next */
+  --move-gap: 4px;
+  /* THE LISTS - everything inside the move list, the engine's lines
+     and the explorer ([#11], [#12]), their one-line messages
+     included: one monospaced font, so their columns line up, at one
+     size, and one line spacing (the move list's and the engine's -
+     the explorer's rows are a bar tall, [#12]). */
+  --mono-font-family: Menlo, "SF Mono", monospace;
+  --list-font-size: .9rem;
+  --list-line-height: 1.8;
+  /* how many lines the move list shows before it scrolls ([#12]) -
+     so a long analysis line never pushes the engine lines and the
+     explorer down */
+  --move-list-rows: 3;
+  /* how many moves the opening explorer shows before it scrolls
+     ([#12]); the heading and the total row (Σ) come on top */
+  --explorer-rows: 5;
+  /* The one space used between everything on the page: between the
+     board and the boxes beside it, and the button row and the
+     chapter row under them ([#4]); between the buttons ([#7]), the
+     chapter row's color square and dropdowns ([#8]) and the boxes
+     ([#10]) - and around them all, at the screen's edges ([#4]),
+     where the Settings and Mode menus also stop ([#9]; placeMenu in
+     trainer.html [#21]). */
+  --gap: 10px;
+  /* THE BOXES - the five boxes beside the board ([#10]), and the
+     one-line boxes that look just like them: the chapter row's
+     dropdowns and color square ([#8]).
+     The space inside them - above and below their contents (-pad-y),
+     and either side (-pad-x) - their border's width, and their
+     rounded corners. One set for all of them, so they all look
+     alike; and a one-line box (the ALT box, a dropdown) is one line
+     of text plus that space and the border, so they're all the same
+     height - the comment box's at one line. */
+  /* how dim a disabled button or dropdown is (0 = invisible, 1 = not
+     dimmed at all) - every one of them ([#3]) */
+  --disabled-opacity: .35;
+  --box-pad-y: 8px;
+  --box-pad-x: 16px;
+  --box-border-width: 1px;
+  --box-radius: 4px;
+  /* (Worked out from the settings above - not one to change: the
+     height of a one-line box - one line of the text font, plus the
+     space above and below it, plus the border. Every button ([#7])
+     and dropdown ([#8]) is this tall - as tall as the ALT box, and
+     the comment box at one line ([#13]).) */
+  --one-line-height: calc(var(--text-font-size) * var(--text-line-height) + 2 * var(--box-pad-y) + 2 * var(--box-border-width));
+
+  /* Extra space pushed above the board+comment box in the
+     full-screen home-screen web app, to clear the iPadOS status
+     bar area (clock/wifi/battery) whose translucent blur otherwise
+     overlaps the top of the board - on top of the --gap every edge
+     has ([#4]). Tweak this number directly if the blur/status bar
+     still overlaps. */
+  --top-inset: 0px; /* set to 24px for the web-app version */
+
+  --bg:                    #161512;
+  --panel:                 #2b2a27;
+  --border:                #404040;
+  --text:                  #bbbbbb;
+  --text-muted:            #8a8a86;
+  --bright:                #eaeaea; /* also the Library's white
+                                       square ([#8]) */
+  --accent:                #4b6584; /* "on" buttons (Comments,
+                                       Explorer, Threat, Engine,
+                                       Play/Stop), Next, the best
+                                       engine line's eval */
+  --accent-bright:         #5d7a9c;
+  /* the keyboard keys in the Settings menu, "[m]" ([#9]) - the
+     muted text grey: a quiet reminder, set apart from the setting's
+     name by its own column. (--border, an "off" switch's grey, was
+     too faint to read.) */
+  --key-hint:              var(--text-muted);
+  /* dims the page behind the promotion picker and settings menu */
+  --backdrop:              #00000059;
+  /* settings menu's drop shadow */
+  --panel-shadow:          #00000073;
+  /* circle behind the comment's "more below" chevron */
+  --scroll-cue-bg:         #00000059;
+  /* engine-line move under the mouse */
+  --engine-line-hover:     #ffffff14;
+  --good:                  #1eac37; /* move annotation */
+  --brilliant:             #188125; /* move annotation */
+  --interesting:           #eb44d7; /* move annotation */
+  --dubious:               #55b4e8; /* move annotation */
+  --mistake:               #e59e00; /* move annotation */
+  --blunder:               #df5153; /* move annotation */
+  --eval-white:            #a9a9a9;
+  --eval-black:            #323232;
+  --eval-equal:            #92c0ec;
+  --game-end:              #8b5cf6; /* game-ending #, S, D badges */
+  --promotion-circle:      #969696;
+  --board-light:           #f0d9b5; /* light squares */
+  --board-dark:            #b58863; /* dark squares */
+  /* the a-h / 1-8 labels and the material count (board.js [#7]):
+     on a light square, a deeper brown than the dark squares, so it
+     reads better; on a dark square, the light squares' color.
+     Lichess's own colors. */
+  --board-coord-on-light:  #946f51;
+  --board-coord-on-dark:   var(--board-light);
+  --board-light-selected:  #809668; /* selected piece's square */
+  --board-dark-selected:   #636e40;
+  --board-light-last-move: #ccd069; /* last move from/to squares */
+  --board-dark-last-move:  #a8a23b;
+  --board-wrong-move:      #c13333; /* square tint on wrong move */
+  --board-alt-move:        #3389c1; /* square tint on ALT: move */
+  --resize-handle:         #000000ad; /* board resize grip */
+  --resize-handle-active:  #000000e6; /* ...while being dragged */
+  --resize-handle-glow:    #ffffff8c; /* its soft light outline */
+  --check-halo-core:       #ff0000; /* king in check */
+  --check-halo-mid:        #e70000;
+  --check-halo-fade-start: #a90000; /* halo fades out toward edge */
+  --check-halo-fade-end:   #9e0000;
+  --badge-text:            #ffffff; /* glyph on annotation badge */
+  --badge-shadow:          #000000; /* badge's drop shadow; also the
+                                       Library's black square ([#8]) */
+  --shape-green:           #15781b; /* arrow & circle */
+  --shape-red:             #882020; /* arrow & circle */
+  --shape-yellow:          #e68f00; /* arrow & circle */
+  --shape-blue:            #003088; /* arrow & circle */
+  --engine-arrow:          #003088; /* engine best-move arrow */
+  --engine-arrow-alt:      #4a4a4a; /* engine alt-move arrows */
+  --engine-threat-arrow:   #882020; /* engine threat arrows, and the
+                                       top threat's eval ([#11]) */
+  --analysis-move:         #d6b56f; /* off-book moves in mve list */
+  /* opening explorer's results bar ([#12]) - White wins, draws,
+     Black wins - and the percentages written on it */
+  --explorer-white:        #c8c8c8;
+  --explorer-draw:         #727272;
+  --explorer-black:        #3c3c3c;
+  --explorer-white-text:   #2b2a27; /* on White's part */
+  --explorer-black-text:   #dddddd; /* on the draws' and Black's part */
+  --error:                 #eb44d7; /* warnings, missing color */
+                                      /* #ff00ff is even brighter */
+
+  /* the board's a-h / 1-8 labels and the material count (board.js
+     [#7]) - the page font by default, as on Lichess (Menlo's "1"
+     has a base) */
+  --board-coord-font-family: var(--font-family);
+  --board-coord-font-weight: 600;
+  /* badge glyph - follows the page font by default */
+  --badge-font-family: var(--font-family);
+  --badge-font-weight: 700;
+}
+
+/* ------------------------------------------------------------
+   [#3] BASE & RESET — global element defaults.
+   ------------------------------------------------------------ */
+/* touch-action: manipulation on EVERY element - no double-tap zoom
+   anywhere on the page (taps, scrolling and dragging still work). It
+   has to be on every element, not just html/body: touch-action isn't
+   inherited, and the browser stops looking up the page at the first
+   box that scrolls or clips (overflow). The board and its resize
+   handle say "none" instead ([#5]): they handle every touch
+   themselves. iPadOS doesn't always honour it, so trainer.html [#11]
+   (preventDoubleTapZoom) backs it up with one guard for the whole
+   page. */
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+/* Browsers give form controls their own default UI font instead of
+   inheriting the page's, even though a <label> right next to them
+   inherits normally - this is what was causing "Chapter" to match
+   but the <select>'s own text and buttons not to. One rule here
+   keeps every control (present and future) in sync with the rest
+   of the page automatically. */
+button, select, input {
+  font-family: inherit;
+}
+html, body {
+  margin: 0; padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-family);
+  /* Nothing on the page is selectable. Otherwise a mouse drag or
+     double-click on the iPad (dragging a piece, clicking a button
+     or the comment box quickly) makes Safari select whatever is
+     under the pointer and wash it in its light-blue selection
+     tint. */
+  -webkit-user-select: none;
+  user-select: none;
+  /* (The iPad's magnifying loupe on the board is stopped in board.js -
+     blockTouchGestures, [#12]. Not -webkit-touch-callout: none here:
+     it's passed down to every text field, where it can hide the
+     long-press Paste menu.) */
+}
+
+/* A DISABLED control lets taps through to what's behind it (the
+   button row, the menu panel...). iPadOS doesn't pass a disabled
+   control's taps on to the page at all, so a quick double tap on a
+   greyed-out button zoomed in; behind it, the page's double-tap guard
+   (trainer.html [#11]) catches it like anywhere else. It does nothing
+   with a tap anyway. */
+button:disabled, select:disabled, input:disabled { pointer-events: none; }
+/* Every disabled button and dropdown is dimmed the same way
+   (--disabled-opacity, [#2]). */
+button:disabled, select:disabled { opacity: var(--disabled-opacity); cursor: default; }
+
+/* Hides anything - used by the scripts to show and hide parts of the
+   page (the move-list box, the engine lines, ...). */
+.hidden { display: none !important; }
+/* Hides a box beside the board for lack of room (trainer.html [#20]).
+   Kept apart from .hidden, which says whether the box is on at all
+   (the engine, the explorer, the Show ALT box switch...), so
+   the two never get in each other's way: a box shows only when it's
+   on AND there's room for it. */
+.no-room { display: none !important; }
+
+/* ------------------------------------------------------------
+   [#4] PAGE LAYOUT — the page grid: two columns, three rows.
+     column 1 - as wide as the board (--board-size)
+     column 2 - the rest of the page
+     row 1 .... the board (.board-col) | the boxes (.side-col, [#10])
+     row 2 .... Settings, mode, << < > >> (.controls-nav) | the other
+                tools (.controls-tools) ([#7])
+     row 3 .... the chapter row, across both columns (#chapterRow,
+                [#8]) - split where the board ends
+   So the buttons and the chapter row line up with the board and the
+   boxes above them, with --gap between everything. How big the board
+   can get is up to the buttons (board.js [#13]): column 2 never gets
+   narrower than its buttons at their icons' width.
+   Around the whole page, at the screen's edges: --gap on every side,
+   like everywhere else (and --top-inset on top of it at the top,
+   [#2]).
+   overflow-x: clip - nothing can make the page wider than the screen,
+   so it never scrolls sideways. The one thing that reaches past the
+   board's edge is the badges' canvas (board.js [#6]): it hangs about
+   a fifth of a square past the board's top and right edges, so a
+   badge in the top-right corner can stick out. Upright, with the
+   board as wide as the screen, that's past the screen's edge - it's
+   just cut off there (at most the edge of a badge's shadow). (clip,
+   not hidden: the page isn't made into a scrolling box of its own.) */
+.wrap {
+  margin: 0 auto;
+  padding: calc(var(--gap) + var(--top-inset)) var(--gap) var(--gap);
+  overflow-x: clip;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, var(--board-size)) minmax(0, 1fr);
+  gap: var(--gap);
+  align-items: start;
+}
+/* The stacked (phone) layout, under 820px wide, is in [#16]. */
+
+/* ------------------------------------------------------------
+   [#5] BOARD FRAME — board canvas, resize handle, drag ghost.
+   (The annotation-badge canvas over the board is made and
+   styled in JS - see board.js [#6].)
+   ------------------------------------------------------------ */
+.board-col { display: flex; flex-direction: column; }
+#boardFrame {
+  background: transparent;
+  position: relative;
+  /* Same size as the board, centred. In the stacked (portrait)
+     layout the column is wider than the board, and the badges,
+     resize handle and promotion picker are all positioned against
+     this frame - so it has to hug the board, not the column. */
+  width: 100%;
+  max-width: var(--board-size);
+  margin: 0 auto;
+}
+canvas#mini {
+  display: block;
+  width: 100%;
+  max-width: var(--board-size);
+  height: auto;
+  margin: 0 auto;
+  border-radius: 2px;
+  touch-action: none;
+}
+canvas#mini.dragging { cursor: grabbing; }
+
+/* Drag handle for freely resizing the board, hung off the board's
+   true bottom-right corner (mostly outside #mini's own box) so it
+   never sits on top of the h1/a1 corner piece. Styled as two plain
+   diagonal strokes (like Lichess's own board resize grip) with no
+   background chip - a soft drop-shadow keeps the lines readable on
+   both light and dark squares without needing a backdrop box. Sits
+   above #mini and #badgeLayer (both pointer-events: none where it
+   matters) so it can catch its own pointer events without a
+   hit-test conflict. Kept a fixed CSS size regardless of board
+   size so it stays easy to grab at any zoom level. */
+#boardResizeHandle {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: nwse-resize;
+  color: var(--resize-handle);
+  filter: drop-shadow(0 0 1.5px var(--resize-handle-glow));
+  touch-action: none;
+  z-index: 3;
+}
+#boardResizeHandle svg { display: block; width: 17px; height: 17px; }
+#boardResizeHandle.dragging { color: var(--resize-handle-active); }
+
+/* Piece being actively dragged. Lives outside #mini entirely (a
+   canvas can't draw past its own edge) so it can visually follow
+   the pointer anywhere on the page - fixed positioning + a very
+   high z-index keep it above every other element regardless of
+   where the drag wanders. Sized in JS to match the board's current
+   on-screen square size; positioned in JS via transform using raw
+   viewport coordinates (not the canvas-internal ones used for
+   hit-testing). */
+#dragGhost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  display: none;
+  pointer-events: none;
+  z-index: 1000;
+}
+
+/* ------------------------------------------------------------
+   [#6] PROMOTION PICKER — the 4-piece choice overlay.
+   Each choice sits on a light grey circle (--promotion-circle,
+   in [#2]) that fills its square, with the piece drawn slightly
+   smaller than normal inside it.
+   ------------------------------------------------------------ */
+.promotion-picker {
+  position: absolute;
+  inset: 0;
+  background: var(--backdrop);
+  z-index: 5;
+}
+.promotion-picker.hidden { display: none; }
+.promotion-piece {
+  position: absolute;
+  width: 12.5%;
+  height: 12.5%;
+  box-sizing: border-box;
+  background: var(--promotion-circle);
+  border: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+/* Piece size inside the circle, as a share of the square. */
+.promotion-piece canvas { width: 80%; height: 80%; }
+
+/* ------------------------------------------------------------
+   [#7] CONTROL BUTTONS — the button row, under the board and the
+   boxes beside it: the page grid's second row ([#4]).
+     .controls-nav, under the board ...... gear (Settings - its menu
+       opens right above it, [#9]), mode (its menu is in [#9] too),
+       << < > >> (>> becomes Next at the end of a line - [#15])
+     .controls-tools, under the boxes .... comments (speech bubble),
+       explorer (bar chart), Threat (crosshair), Engine (chip),
+       Play/Stop
+   (The Link button - chain link - is in the chapter row, [#8].)
+   Each group shares its column's width equally among its buttons
+   (however many there are), with --gap between them. Every button is
+   --one-line-height tall, with the boxes' border and rounded corners
+   ([#2]) - so the buttons, the boxes and the dropdowns are all the
+   same height and look. The buttons have no padding at the
+   sides - their icons are centered - so they can get as narrow as
+   their icons, which is what sets how big and how small the board
+   can get (board.js [#13]).
+   The comments, explorer, Threat, Engine and Play/Stop buttons are
+   lit (.active - --accent) while they're on.
+   ------------------------------------------------------------ */
+.controls-nav, .controls-tools {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: var(--gap);
+}
+.controls-nav { grid-column: 1; }
+.controls-tools { grid-column: 2; }
+button.ctrl {
+  background: var(--panel);
+  border: var(--box-border-width) solid var(--border);
+  color: var(--text);
+  padding: 0;
+  border-radius: var(--box-radius);
+  cursor: pointer;
+  width: 100%;
+  min-width: 0;
+  height: var(--one-line-height);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+/* Icon-only buttons (gear/link/mode/speech bubble/explorer/
+   crosshair/chip/play-stop, and >> as Next) - all the same size, so
+   the row reads as one set. This size is also the narrowest a button
+   may get (board.js [#13]). */
+button.ctrl svg.icon { width: 24px; height: 24px; display: block; flex: none; }
+button.ctrl.active { background: var(--accent); border-color: var(--accent-bright); color: var(--bright); }
+/* The << < > >> glyphs (their size is --nav-glyph-size, [#2]). These
+   glyphs sit low in their line (in Noto Sans their middle is about
+   0.1em below the line's middle), so there's padding underneath only:
+   twice that, 0.22em - in em, so it grows and shrinks with the glyphs
+   and keeps them centered at any size, in a button of any height (it
+   nudges them up without changing the button's height - box-sizing:
+   border-box). Raise it to nudge them further up, lower it to bring
+   them down. */
+#btnStart, #btnPrev, #btnNext, #btnEnd {
+  font-size: var(--nav-glyph-size);
+  font-weight: 400;
+  line-height: 1;
+  padding: 0 0 0.22em 0;
+}
+
+/* ------------------------------------------------------------
+   [#8] CHAPTER ROW — across the whole page under the button row: the
+   page grid's third row ([#4]). The Link button (the open chapter on
+   Lichess) first, then the Chapter dropdown; in Library mode (the row
+   has .library) the color square and the Study dropdown come after
+   the Link button (trainer.html [#5]):
+     Library mode ... the Link button, the color square and Study
+                      under the board, Chapter under the boxes - the
+                      row uses the page grid's own two columns
+                      (subgrid), so it splits exactly where the board
+                      ends
+     otherwise ...... the Link button, then Chapter across the rest of
+                      the row
+   (In the stacked layout, Library mode splits under the gap between
+   << and < instead - [#16].)
+   They look just like the comment box - the same box, font and
+   height as the ALT box ([#10]), with no arrows; the Link button and
+   the color square are squares. A name too long for its dropdown is
+   simply cut off at the edge. Chapter is greyed out until a study is picked.
+   ------------------------------------------------------------ */
+#chapterRow {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: var(--gap);
+  align-items: center;
+}
+#chapterRow.library {
+  display: grid;
+  grid-template-columns: subgrid;
+}
+/* The Link button, and in Library mode the color square and Study. */
+.chapter-left {
+  flex: none;
+  display: flex;
+  gap: var(--gap);
+  min-width: 0;
+}
+#chapterRow.library .chapter-left { grid-column: 1; }
+#chapterSel { flex: 1 1 0; min-width: 0; }
+#chapterRow.library #chapterSel { grid-column: 2; }
+/* The color square and Study aren't shown at all out of Library
+   mode (!important, like .hidden [#3], so it wins over their own
+   display). */
+#chapterRow:not(.library) .library-only { display: none !important; }
+#libraryStudy { flex: 1 1 0; min-width: 0; }
+/* The Link button and the color square: as wide as they are tall. */
+#chapterRow #btnChapterLink, #chapterRow #libraryColor {
+  flex: none;
+  width: auto;
+  aspect-ratio: 1;
+}
+/* The color square: a square of its color filling the space inside
+   it (--box-pad-y all round): white (--bright, the page's bright
+   text) or black (.black: --badge-shadow, pure black), both from
+   [#2]. (#chapterRow in front, so the same space on all four sides
+   wins over the boxes' wider space at the sides, [#10].) */
+#chapterRow #libraryColor {
+  padding: var(--box-pad-y);
+  cursor: pointer;
+  display: flex;
+}
+#libraryColor::after {
+  content: "";
+  flex: 1;
+  border-radius: 2px;
+  background: var(--bright);
+}
+#libraryColor.black::after { background: var(--badge-shadow); }
+#chapterRow select:focus { outline: none; }
+/* No up/down arrows at the right of the dropdowns: Safari's own,
+   which don't match the page's look. A tap anywhere on the dropdown
+   opens it, as before. */
+#chapterRow select {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* ------------------------------------------------------------
+   [#9] SETTINGS PANEL — gear-menu popover: toggles, date nav.
+   ------------------------------------------------------------ */
+/* Settings menu - a popover placed (in JS, placeMenu in trainer.html
+   [#21]) with its bottom-left corner at the board's lower-left
+   corner, just above the buttons. The backdrop is just a full-page
+   dimmer/click-catcher for dismissing it. */
+.settings-backdrop {
+  position: fixed;
+  inset: 0;
+  background: var(--backdrop);
+  z-index: 20;
+}
+.settings-backdrop.hidden { display: none; }
+/* The Settings and Mode menus are in the page's text font, at the
+   comment box's size ([#2]) - everything in them inherits it (the
+   mode rows are told to, below: form controls don't on their own).
+   As wide as their longest row (never wider than the screen, less
+   --gap either side). Never taller than the room from the top of the
+   screen (less --gap) down to the board's bottom edge (placeMenu
+   sets max-height), so they never
+   cover the buttons under the board: what doesn't fit scrolls, under
+   the title, which stays put. overscroll-behavior: scrolling to the
+   end of the menu doesn't go on to scroll the page behind it. */
+.settings-panel {
+  position: fixed;
+  width: max-content;
+  max-width: calc(100vw - 2 * var(--gap));
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0 16px 6px;
+  box-shadow: 0 8px 28px var(--panel-shadow);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  font-family: var(--font-family);
+  font-size: var(--text-font-size);
+  font-weight: var(--text-font-weight);
+  line-height: var(--text-line-height);
+}
+/* The title: bold, and pinned to the top while the rows scroll under
+   it (its own background hides them). */
+/* (A row: the title on the left, and in the Settings menu the Data
+   button on the right - below.) */
+.settings-title {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--panel);
+  font-weight: 700;
+  color: var(--bright);
+  padding: 18px 0 12px 0;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+/* The Settings menu's folder button (trainer.html [#21]): the data
+   page. Its icon (icons.js "folder") the size of the icons on the
+   buttons under the board ([#7]), in a box like theirs - its negative
+   margins keep it from making the title's row any taller. The icon
+   in --bright, the white of the "Settings" beside it, so it stands
+   out on the panel as something to tap - like the date arrows. */
+.settings-title-btn {
+  background: var(--panel);
+  color: var(--bright);
+  border: var(--box-border-width) solid var(--border);
+  border-radius: var(--box-radius);
+  padding: 5px 14px;
+  margin: -4px 0;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+.settings-title-btn svg.icon { width: 24px; height: 24px; display: block; flex: none; }
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+}
+.settings-row + .settings-row { border-top: 1px solid var(--border); }
+/* A switch's whole row is a <label>: a tap anywhere on it - the words
+   too, not just the switch - flips the switch. */
+label.settings-row { cursor: pointer; }
+.settings-row-label { color: var(--text); white-space: nowrap; }
+/* A switch's keyboard key - "[m]" - just left of its switch, in
+   --key-hint ([#2]). margin-left: auto pushes it right up to the
+   switch, so with every switch at the right edge the keys stand in
+   one column. In the lists' monospaced font, so every "[x]" is the
+   same width and the brackets line up exactly. Added by the script
+   from its list of keys (showSettingKeyHints, trainer.html [#24]),
+   not written in the markup. */
+.key-hint {
+  margin-left: auto;
+  color: var(--key-hint);
+  font-family: var(--mono-font-family);
+  white-space: nowrap;
+}
+/* The switch, sized to go with the text: 52 x 30px. */
+.switch { position: relative; display: inline-block; width: 52px; height: 30px; flex: none; }
+.switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+.switch .slider {
+  position: absolute; inset: 0; cursor: pointer;
+  background: var(--border);
+  border-radius: 999px;
+  transition: background .15s ease;
+}
+.switch .slider::before {
+  content: "";
+  position: absolute;
+  height: 24px; width: 24px;
+  left: 3px; top: 3px;
+  background: var(--bright);
+  border-radius: 50%;
+  transition: transform .15s ease;
+}
+.switch input:checked + .slider { background: var(--accent); }
+.switch input:checked + .slider::before { transform: translateX(22px); }
+/* Settings-panel date nav (SR date browser): a date label flanked
+   by a prev/next arrow on either side, matching the shape of the
+   toggle-switch rows around it. Arrows are SVG chevrons (not text
+   glyphs) specifically so they sit dead-center in the circle
+   regardless of font baseline quirks, at a size that actually
+   reads at a glance. The arrows in --bright, the white of the
+   "Settings" title, like the folder button, so they look tappable. */
+.date-nav { display: flex; align-items: center; gap: 10px; flex: none; }
+.date-nav-label {
+  min-width: 4.4em;
+  text-align: center;
+  color: var(--bright);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.date-nav-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--bright);
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.date-nav-btn svg { width: 22px; height: 22px; display: block; }
+/* The mode menu (trainer.html [#2]): the Settings panel's look,
+   placed the same way but over the mode button. One row per list
+   mode - its icon and name - with a straight line between rows, like
+   the Settings rows, every line the same length as the one under the
+   title. The active mode's row is lit up the way the current move is
+   in the move list (.mv.current, [#12]): a square-cornered block from
+   line to line - right up against the title's line when it's the
+   first row - with the lines next to it hidden so it reads as one
+   block.
+   The panel's sides are the Settings panel's own 16px, so its lines
+   start and end exactly where the Settings menu's do. Each row's
+   icon and name sit 8px in from the line's start, which leaves the
+   lit block a little room either side of the text. */
+#modeMenu { min-width: 220px; }
+#modeMenu .settings-title { margin-bottom: 0; }
+#modeMenuRows { padding-bottom: 6px; }
+.mode-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin: 0;
+  padding: 11px 8px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.mode-row + .mode-row { border-top: 1px solid var(--border); }
+.mode-row svg.icon { width: 24px; height: 24px; display: block; flex: none; }
+.mode-row.active { background: var(--accent); color: var(--bright); }
+.mode-row.active, .mode-row.active + .mode-row { border-top-color: transparent; }
+
+/* ------------------------------------------------------------
+   [#10] BOXES — one look for every box on the page:
+     - the five boxes beside the board (class "box"): the move list,
+       the engine's lines, the explorer, the comment box and the ALT
+       box, with --gap between them
+     - the one-line boxes that look just like them: the chapter row's
+       dropdowns and color square ([#8])
+   All of them: panel background, the same border, the same rounded
+   corners and the same space inside (--box-*, [#2]).
+   The comment box, the ALT box and the dropdowns also share one font
+   (--font-family and --text-*, [#2] - the Settings and Mode menus
+   have it too, [#9]). (The
+   move list, the engine's lines and the explorer keep their own
+   monospaced font - [#11], [#12].)
+   And the one-line boxes are all exactly --one-line-height tall
+   ([#2]): one line of that text, plus the space inside and the border
+   - the same height as the ALT box, the comment box at one line
+   ([#13]) and the buttons ([#7]).
+   ------------------------------------------------------------ */
+.side-col { display: flex; flex-direction: column; gap: var(--gap); }
+.box, #chapterRow select, #libraryColor {
+  background: var(--panel);
+  color: var(--text);
+  border: var(--box-border-width) solid var(--border);
+  border-radius: var(--box-radius);
+  padding: var(--box-pad-y) var(--box-pad-x);
+}
+#commentText, #altText, #chapterRow select, #libraryColor {
+  font-family: var(--font-family);
+  font-size: var(--text-font-size);
+  font-weight: var(--text-font-weight);
+  line-height: var(--text-line-height);
+}
+#chapterRow select, #libraryColor {
+  height: var(--one-line-height);
+}
+
+/* ------------------------------------------------------------
+   [#11] ENGINE LINES — a box of its own ([#10]), under the move
+   list's (and over the explorer's), with the Engine or Threat button
+   on: the engine's lines - or, in their place, one row with a message
+   (filled in by engine.js "The engine lines"). The move list comes
+   first so it never moves when the engine or the explorer is turned
+   on.
+   ------------------------------------------------------------ */
+/* The engine's top lines (ENGINE_LINES in engine.js), one row
+   each: that line's eval, then as many of its moves as fit. Best
+   line first. The lists' font, size and line spacing (--mono-font-family,
+   --list-font-size, --list-line-height, [#2]), like the move list. */
+#engineLines {
+  font-family: var(--mono-font-family);
+  font-size: var(--list-font-size);
+  line-height: var(--list-line-height);
+}
+/* Fixed row height, so a row still waiting for its line (empty) is
+   already full height - the box doesn't grow as lines arrive.
+   1lh = one line of text, so it follows the line-height above. */
+/* (content-box: the line between rows is added below the row's
+   height, not taken out of it, so every row's text sits the same) */
+.engine-line { display: flex; gap: 10px; min-width: 0; height: 1lh; box-sizing: content-box; }
+.engine-line + .engine-line { border-top: 1px solid var(--border); }
+.engine-line .el-eval {
+  flex: none;
+  min-width: 3.4em;
+  font-weight: 700;
+  color: var(--bright);
+  font-variant-numeric: tabular-nums;
+}
+/* The best line's eval stands out: it sits in a pill, like the current
+   move in the move list (.mv.current, [#12]) - the same blue
+   (--accent) and the same space round the text (--move-pad), so the
+   eye goes straight to it. In threat mode (#engineLines.el-static,
+   the opponent's threats) the pill is red, the red of the threat
+   arrows (--engine-threat-arrow, [#2]). The pill is drawn on the
+   eval's inner span (.el-pill), and its padding is cancelled out at
+   the start by the negative margin, so the text and the moves after
+   it sit exactly where they do on the other rows. */
+.engine-line:first-child .el-pill:not(:empty) {
+  background: var(--accent);
+  border-radius: var(--box-radius);
+  padding: 2px var(--move-pad);
+  margin-left: calc(-1 * var(--move-pad));
+}
+#engineLines.el-static .engine-line:first-child .el-pill:not(:empty) {
+  background: var(--engine-threat-arrow);
+}
+.engine-line .el-moves {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  color: var(--text);
+  -webkit-user-select: none;
+  user-select: none;
+}
+/* Each move in a line can be tapped - the board goes to the
+   position after it (the line's first move slides in, like a step
+   with >) and the line goes into the move list
+   (engine.js; playEngineLine in trainer.html [#14]). Move numbers are
+   muted, like the move list's. The padding is cancelled out by the
+   negative margin, so the moves sit exactly where plain text would.
+   Threat-mode lines (#engineLines.el-static) can't be played and
+   stay plain text. */
+.engine-line .el-num { color: var(--text-muted); }
+.engine-line .el-mv {
+  cursor: pointer;
+  padding: 2px 3px;
+  margin: 0 -3px;
+  border-radius: var(--box-radius);
+}
+@media (hover: hover) {
+  .engine-line .el-mv:hover { background: var(--engine-line-hover); color: var(--bright); }
+}
+.engine-line .el-mv.pressed { background: var(--accent); color: var(--bright); }
+#engineLines.el-static .el-mv { cursor: default; }
+#engineLines.el-static .el-mv:hover { background: none; color: inherit; }
+/* One row with a message, in place of the lines (no empty rows under
+   it): "Checkmate", "Stalemate", "No threat while in check" - bold
+   and bright, like a line's eval. A long one wraps instead of being
+   cut off. */
+.engine-msg {
+  font-weight: 700;
+  color: var(--bright);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+/* ...or why Stockfish can't run (its files missing, the Code app's
+   server stopped...) - in --error like every other message ([#14]),
+   in the lists' monospaced font like everything else in the box
+   ([#2]), not bold, with a little less line spacing than the lines,
+   as it's a sentence that may wrap. Not a page error: the rest of the
+   trainer carries on (engine.js "When Stockfish can't run"). */
+/* (This look is shared with the explorer's "Lichess can't answer"
+   line, #explorerStatus [#12]: one rule for both.) */
+.engine-msg.el-error, #explorerStatus {
+  font-family: var(--mono-font-family);
+  font-size: var(--list-font-size);
+  font-weight: 400;
+  line-height: 1.35;
+  color: var(--error);
+  overflow-wrap: anywhere;
+}
+/* (a little extra space, as it has less line spacing than the
+   engine lines) */
+.engine-msg.el-error { padding: 4px 0; }
+
+/* ------------------------------------------------------------
+   [#12] MOVE LIST & EXPLORER — the move-pair list, with
+   per-annotation move-text colors (brilliant/good/interesting/
+   dubious/...), the analysis line, and the opening explorer
+   under it.
+   ------------------------------------------------------------ */
+#moveListBox { background: var(--panel); border-color: var(--border); }
+#moveList {
+  /* The lists' font, size and line spacing ([#2]), like the engine
+     lines ([#11]). */
+  font-family: var(--mono-font-family);
+  font-size: var(--list-font-size);
+  line-height: var(--list-line-height);
+  /* --move-list-rows lines ([#2]), then it scrolls; the current move
+     is always scrolled into view, a whole line at a time, and the
+     start of the line scrolls back to the top (trainer.html
+     scrollMoveListTo).
+     1lh = one line of text at the line spacing above. */
+  max-height: calc(var(--move-list-rows) * 1lh);
+  overflow-y: auto;
+  /* Every move ends with its own padding + gap (.mv below), which
+     is only needed between moves - but the browser still makes room
+     for it at the end of each line, so without this a move whose
+     text would fit gets pushed to the next line, and the right
+     margin looks wider than the left. Letting the list reach
+     exactly that far into the box's right padding evens the margins
+     out. */
+  margin-right: calc(-1 * (var(--move-pad) + var(--move-gap)));
+}
+/* A line may break between White's and Black's move (at the
+   <wbr> that renderMoveList / appendVariation put there), not only
+   between move pairs - so a line ends at most one move short of the
+   edge instead of up to a whole pair short. Nowhere else: a move
+   number stays with the move after it (no space between them), and
+   a move is never split (.mv nowrap - "O-O-O" would otherwise break
+   at its hyphens). */
+.pair { white-space: normal; }
+.num, .mv { white-space: nowrap; }
+.num { color: var(--text-muted); margin-right: 2px; }
+.mv {
+  cursor: pointer;
+  padding: 2px var(--move-pad); /* set in [#2] */
+  border-radius: var(--box-radius);
+  margin-right: var(--move-gap); /* set in [#2] */
+}
+.mv.brilliant { color: var(--brilliant); }
+.mv.good { color: var(--good); }
+.mv.interesting { color: var(--interesting); }
+.mv.dubious { color: var(--dubious); }
+.mv.mistake { color: var(--mistake); }
+.mv.blunder { color: var(--blunder); }
+.mv.current { background: var(--accent); color: var(--bright); font-weight: 700; }
+
+/* Analysis line - your own off-book moves, shown in
+   brackets right after the book move they branch from. */
+.variation { white-space: normal; color: var(--text-muted); }
+.mv.ana { color: var(--analysis-move); }
+.mv.ana.current { color: var(--bright); }
+
+/* The opening explorer (explorer.js), a box of its own ([#10]) under
+   the move list's and the engine's - turned on with the explorer
+   button under the board ([#7]): a line saying why Lichess can't
+   answer (only then; in --error, like every other message, [#14]),
+   then the table of moves. (The problem line looks like the engine's
+   "Stockfish can't run" line - one rule for both, [#11].) */
+#explorerStatus { margin-bottom: 4px; }
+/* The table: a heading row, one row per move (most played first) and
+   the total row (Σ). Shows --explorer-rows moves ([#2]) and scrolls
+   for the rest; the heading and the total row stay in view while it
+   does. While the next position's moves are on their way the old
+   table stays, dimmed (.stale).
+   Every row - heading, moves, Σ - is exactly one bar tall (1.4em,
+   .ex-bar) plus its 3px padding above and below: the text's line
+   height is set to the bar's height, so no font can make a row taller
+   or shorter. So the table's height is simply that many rows. */
+#explorerTable {
+  line-height: 1.4;
+  max-height: calc((var(--explorer-rows) + 2) * (1.4em + 6px));
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  font-family: var(--mono-font-family);
+  font-size: var(--list-font-size);
+}
+#explorerTable.stale { opacity: .45; }
+/* columns: move, share, games, results bar. In ch - the width of one
+   character of this monospaced font - so each column is exactly as
+   wide as its longest text ("100%"), and "Games" above it starts
+   right over the share's first digit. The games column is one
+   character wider than "4.3B", for a space after the share. */
+.ex-row {
+  display: grid;
+  grid-template-columns: 6ch 4ch 5ch 1fr;
+  column-gap: 8px;
+  align-items: center;
+  padding: 3px 4px;
+}
+.ex-row[data-uci] { cursor: pointer; }
+@media (hover: hover) {
+  #explorerTable:not(.stale) .ex-row[data-uci]:hover { background: var(--engine-line-hover); }
+}
+.ex-row.pressed { background: var(--accent); }
+.ex-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--panel);
+  color: var(--text-muted);
+}
+/* "Games" heads both the share and the count */
+.ex-head span:nth-child(2) { grid-column: span 2; }
+.ex-sum {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  background: var(--panel);
+}
+.ex-move { color: var(--bright); white-space: nowrap; }
+.ex-share, .ex-games {
+  color: var(--text-muted);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ex-bar {
+  display: flex;
+  height: 1.4em;
+  border-radius: var(--box-radius);
+  overflow: hidden;
+}
+.ex-bar > span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: .75rem;
+}
+.ex-w { background: var(--explorer-white); color: var(--explorer-white-text); }
+.ex-d { background: var(--explorer-draw); color: var(--explorer-black-text); }
+.ex-b { background: var(--explorer-black); color: var(--explorer-black-text); }
+.ex-none { padding: 6px 4px; color: var(--text-muted); font-style: italic; }
+
+/* ------------------------------------------------------------
+   [#13] COMMENT & ALT BOXES — the main comment box, the ALT box
+   below it, and the "more below" scroll cue.
+   ------------------------------------------------------------ */
+#commentBox {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  /* positioning context for #commentScrollCue */
+  position: relative;
+}
+#commentBox.tappable {
+  cursor: pointer;
+}
+#commentBox.tappable:active {
+  background: var(--panel);
+}
+/* white-space: pre-wrap shows the comment's own line breaks - they
+   come ready-made in the file ("\n" a line break, "\n\n" a blank
+   line; trainer.html [#18]). */
+/* (its font is the page's text font - [#10]) */
+/* Never less than one line tall, even with no comment - like #altText
+   below - so the comment box is never thinner than the ALT box. (Beside
+   the board the box is sized to fit the column anyway, trainer.html
+   [#20]; in the stacked layout it's as tall as its text, which without
+   this was nothing - a thin empty strip.) */
+#commentText {
+  min-height: 1lh;
+  color: var(--text);
+  white-space: pre-wrap;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 4px;
+}
+#commentText.empty { color: var(--text-muted); font-style: italic; }
+
+/* Secondary "ALT" box: sits just below the main comment box and
+   shows the move's other accepted moves (its altSan, from the
+   ALT: moves you write on Lichess - renderAltText in
+   trainer.html [#18]) - printed as "ALT: <move>, <move>...", and
+   left blank (no label) when the current move has none, so it stays
+   unobtrusive the rest of the time. Shown whenever there's room for
+   it - when there isn't, it's hidden before the comment box
+   (trainer.html [#20]).
+   It's the comment box's twin: the same look, the same space inside
+   it and the same font ([#10]) - so it's always exactly as tall as
+   the comment box is at one line. It's
+   pinned at that one line (#altText is 1lh tall - one line at that
+   spacing - even when it's empty); there's never more than a handful
+   of moves in here, and in the rare case they're too wide to fit,
+   they scroll sideways instead of wrapping. */
+.alt-row {
+  display: flex;
+  align-items: stretch;
+}
+.alt-box {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+#altText {
+  height: 1lh;
+  color: var(--text);
+  white-space: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  width: 100%;
+  scrollbar-width: none;
+}
+#altText::-webkit-scrollbar { display: none; }
+#altText.empty { color: var(--text-muted); }
+
+/* "More text below" cue: a small down-chevron pinned to the
+   bottom-right of the comment box, shown only while #commentText
+   has content scrolled out of view below the fold. Mirrors the
+   scroll cue from the preview_mode userscript. Tune size/offset/
+   tolerance via COMMENT_CUE_* in trainer.html [#18]. */
+#commentScrollCue {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--scroll-cue-bg);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .15s ease;
+}
+
+/* ------------------------------------------------------------
+   [#14] ERROR MESSAGES — problems with the page itself (a missing
+   file, a script error, a mistyped CSS color - see errors.js).
+   There's no browser
+   console on iPad, so they're shown in the comment box, in
+   place of the comment, and the page stops until it's
+   reloaded. Uses the --error color from [#2].
+   ------------------------------------------------------------ */
+/* Hidden until an error comes in: errors.js then adds .has-errors to
+   the comment box and .page-stopped to the page. */
+#pageWarnings, #pageStopCover { display: none; }
+/* The comment and its scroll cue step aside for the errors. */
+#commentBox.has-errors #commentText,
+#commentBox.has-errors #commentScrollCue { display: none !important; }
+#commentBox.has-errors { cursor: default; }
+#commentBox.has-errors #pageWarnings {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+#pageWarnList {
+  font-size: var(--text-font-size);
+  line-height: var(--text-line-height);
+  color: var(--error);
+  overflow-wrap: anywhere;
+}
+#pageWarnList div + div { margin-top: 6px; }
+#pageWarnHelp {
+  margin-top: var(--gap);
+  font-size: var(--text-font-size);
+  line-height: var(--text-line-height);
+  color: var(--text-muted);
+}
+/* The cover: dims the whole page and catches every tap, so nothing
+   can be used until the page is reloaded. It sits above everything
+   (even the drag ghost, [#5]) except the comment box, so the errors
+   stay readable and a long list can still be scrolled. */
+body.page-stopped #pageStopCover {
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: 1001;
+  background: var(--backdrop);
+}
+body.page-stopped #commentBox { z-index: 1002; }
+
+/* ------------------------------------------------------------
+   [#15] NEXT — the >> button at the end of a line (trainer.html
+   [#6]): the next-chapter icon (icons.js "next") instead of the >>
+   glyph, lit like an "on" button (--accent). On the last chapter it
+   stays >>, greyed out like any disabled button ([#3]).
+   ------------------------------------------------------------ */
+/* (padding 0: the icon is centered like every other icon - the
+   space under the >> glyph, [#7], is only for the glyph) */
+#btnEnd.next-chapter {
+  padding: 0;
+  background: var(--accent);
+  border-color: var(--accent-bright);
+  color: var(--bright);
+}
+
+/* ------------------------------------------------------------
+   [#16] STACKED LAYOUT — everything that changes on a narrow
+   screen (under 820px wide - an iPad held upright, say), where the
+   page grid ([#4]) has one column. All in this one block, so
+   820px is written only here - the script keeps no copy
+   of it; it just checks whether the grid has one column
+   (isStackedLayout, trainer.html [#20]). Last in the stylesheet so
+   these rules win over the normal ones above.
+   ------------------------------------------------------------ */
+@media (max-width: 820px) {
+  .layout { grid-template-columns: minmax(0, 1fr); }
+  /* Top to bottom: the board, << < > >>, the tools, the boxes, the
+     chapter row - so the buttons are right under the board. The
+     button groups each run the whole width. */
+  .controls-nav, .controls-tools { grid-column: 1; }
+  .controls-nav { order: 1; }
+  .controls-tools { order: 2; }
+  .side-col { order: 3; }
+  #chapterRow { order: 4; }
+  /* Library mode: in the same six columns as the six buttons above
+     it - Settings, mode, << < > >> - so the row splits right under
+     the gap between << and < ([#8]): the Link button, the color
+     square and Study under Settings, mode and <<, Chapter under
+     < > >>. (The one place the number of those buttons is written:
+     change it here too if they change.) */
+  #chapterRow.library {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    column-gap: var(--gap);
+  }
+  #chapterRow.library .chapter-left { grid-column: 1 / 4; }
+  #chapterRow.library #chapterSel { grid-column: 4 / -1; }
+}

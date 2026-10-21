@@ -1,0 +1,3128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>trainer</title>
+<!-- =================================================================
+     INDEX
+     =================================================================
+     Every file lists its own sections in its header, numbered [#1],
+     [#2], ... A reference to another file's section names the file -
+     "board.js [#6]" - and a bare "[#6]" means a section of the file
+     it's in.
+
+     THE FILES - keep them all in the same folder as this page:
+      trainer.html ................... this page: the markup, and the
+                                       chapters and gameplay below
+      trainer.css .................... how the page looks; every
+                                       color is in trainer.css [#2]
+      errors.js ...................... error messages - every error
+                                       stops the page until it's
+                                       reloaded
+      rules.js ....................... chess rules: legal moves, SAN,
+                                       check and mate
+      filter.js ...................... reads the two .jsonl files and
+                                       builds the SR / random / puzzle
+                                       / Library lists
+      pieces.js ...................... piece artwork
+      board.js ....................... the board: drawing, taps and
+                                       drags, piece slides, resizing
+      icons.js ....................... UI icons (data-icon="...")
+      engine.js ...................... Stockfish analysis
+      explorer.js .................... Lichess opening explorer, and
+                                       the open line's Lichess data
+                                       collected in the background
+      data.html ...................... the data page, opened on its
+                                       own (not by this page): takes
+                                       the Lichess token, loads the
+                                       openings, puzzles and
+                                       explorer data files for the
+                                       trainer, gathers the Lichess
+                                       data and saves
+                                       explorer_data.jsonl
+      NotoSans.ttf ................... the page font (trainer.css
+                                       [#1])
+      stockfish-19-lite-single.js .... engine (Lite)
+      stockfish-19-lite-single.wasm .. engine (Lite), used by the .js
+      stockfish-19-single.js ......... engine (Full, optional - only
+                                       with ENGINE_TYPE set to "full"
+                                       at the top of engine.js)
+      stockfish-19-single.wasm ....... engine (Full), used by the .js
+      LICENSE ........................ the GNU GPL v3: the license of
+                                       the trainer's own code, and of
+                                       Stockfish
+      CREDITS.md ..................... who made what (Stockfish, the
+                                       pieces, the font, the icons,
+                                       Lichess, python-chess), with
+                                       their licenses
+      NotoSans-OFL.txt ............... the font's license
+
+     THIS FILE'S SECTIONS (in the <script> at the bottom)
+     CHAPTERS & FILES - which chapter is on the board
+      [#1]  CHAPTER STATE ........ the list, the open chapter, mode
+      [#2]  CHAPTER LIST ......... builds the list; the mode menu
+      [#3]  SR DATE .............. the date picked in Settings; a
+                                   new day rebuilds the list;
+                                   today (realToday, todayString)
+      [#4]  OPENING A CHAPTER .... loadChapter, clearBoard, the
+                                   remembered last chapter
+      [#5]  CHAPTER DROPDOWN ..... the Chapter <select>, Link button;
+                                   the Library's color square and
+                                   Study dropdown; the SR / Random
+                                   chapter carried into the Library
+      [#6]  NEXT CHAPTER ......... the end of a line (>> becomes
+                                   Next), p and n stepping
+      [#7]  TRAINER FILES ........ the two files the lists come from
+      [#8]  FILE CACHE (INDEXEDDB)  where data.html keeps
+                                   both files
+      [#9]  NO FILE YET .......... what the board says with nothing
+                                   to show
+      [#10] STARTUP LOAD ......... reads both saved files at launch
+
+     GAMEPLAY & APP - how it's played, and the app around it
+      [#11] HELPERS .............. el, bindTap, TAP_SLOP, no
+                                   double-tap zoom
+      [#12] GAME STATE ........... where you are; practice or browse
+      [#13] NAVIGATION ........... goToPly, prev/next, button states
+      [#14] ANALYSIS LINE ........ free play off the book line,
+                                   tapped engine-line and explorer
+                                   moves
+      [#15] PRACTICE MODE ........ the Play/Stop button
+      [#16] MOVE CHECK & AUTO-PLAY  your move vs book, wrong-move
+                                   retry, the opponent's reply
+      [#17] ANNOTATION COLORS .... !!/!/etc. colors (move list,
+                                   comment text, badges)
+      [#18] COMMENT BOX .......... comment and ALT box, scroll cue
+      [#19] MOVE LIST ............ sidebar move-pair list
+      [#20] SIDEBAR HEIGHT ....... sidebar kept within the board's
+                                   height
+      [#21] SETTINGS ............. saved settings, Show... switches,
+                                   the gear menu
+      [#22] ENGINE & EXPLORER .... in engine.js and explorer.js;
+                                   hooks listed here
+      [#23] BUTTON WIRING ........ buttons and on-screen controls
+      [#24] KEYBOARD SHORTCUTS ... arrows, p and n chapters, Space,
+                                   t practice, l engine, x threat,
+                                   a arrows, e explorer; the keys
+                                   for Settings switches (m, b, g,
+                                   i, o); c comments
+      [#25] BOOT & STOP .......... start-up; what an error halts
+    ============================================================ -->
+
+<!-- every style on the page -->
+<link rel="stylesheet" href="trainer.css">
+</head>
+<body>
+
+<div class="wrap">
+  <div class="layout">
+    <div class="board-col">
+      <div id="boardFrame">
+        <!-- The board, and #dragGhost (the piece held while
+             dragging) just below. The sizes on these two canvases
+             are only where they start: board.js
+             gives them as many pixels as the screen shows them with,
+             so they're sharp (board.js, SHARPNESS in [#1]). -->
+        <canvas id="mini" width="1152" height="1152"></canvas>
+        <div class="promotion-picker hidden" id="promoPicker"></div>
+        <div id="boardResizeHandle" title="Drag to resize board" data-icon="resize"></div>
+      </div>
+      <canvas id="dragGhost" width="144" height="144"></canvas>
+      <!-- the mode menu, opened by the mode button: a pop-up like
+           Settings, one row per list mode - its rows are made by
+           buildModeMenu ([#2]) -->
+      <div class="settings-backdrop hidden" id="modeMenuBackdrop">
+        <div class="settings-panel" id="modeMenu">
+          <div class="settings-title">Mode</div>
+          <div id="modeMenuRows"></div>
+        </div>
+      </div>
+      <div class="settings-backdrop hidden" id="settingsBackdrop">
+        <div class="settings-panel" id="settingsPanel">
+          <!-- the title, and on its right the folder button: the data
+               page, in this tab ([#21]) -->
+          <div class="settings-title"><span>Settings</span>
+            <button type="button" class="settings-title-btn" id="btnDataPage" title="Open the data page" aria-label="Open the data page" data-icon="folder"></button></div>
+          <div class="settings-row">
+            <span class="settings-row-label">Date</span>
+            <div class="date-nav">
+              <button type="button" class="date-nav-btn" id="dateNavPrev" title="Previous day" aria-label="Previous day" data-icon="chevronLeft"></button>
+              <span class="date-nav-label" id="dateNavLabel" title="Jump to today">Today</span>
+              <button type="button" class="date-nav-btn" id="dateNavNext" title="Next day" aria-label="Next day" data-icon="chevronRight"></button>
+            </div>
+          </div>
+          <!-- Each switch's whole row is a <label>, so a tap anywhere
+               on the row - the words too - flips its switch
+               (trainer.css [#9]) -->
+          <label class="settings-row">
+            <span class="settings-row-label">Auto practice mode</span>
+            <span class="switch"><input type="checkbox" id="toggleAutoPractice"><span class="slider"></span></span>
+          </label>
+          <label class="settings-row">
+            <span class="settings-row-label">Show chapter name</span>
+            <span class="switch"><input type="checkbox" id="toggleShowChapterName"><span class="slider"></span></span>
+          </label>
+          <label class="settings-row">
+            <span class="settings-row-label">Show move annotations</span>
+            <span class="switch"><input type="checkbox" id="toggleShowAnnotations"><span class="slider"></span></span>
+          </label>
+          <label class="settings-row">
+            <span class="settings-row-label">Show material count</span>
+            <span class="switch"><input type="checkbox" id="toggleShowMaterialCount"><span class="slider"></span></span>
+          </label>
+          <label class="settings-row">
+            <span class="settings-row-label">Show ALT box</span>
+            <span class="switch"><input type="checkbox" id="toggleShowAltBox"><span class="slider"></span></span>
+          </label>
+          <label class="settings-row">
+            <span class="settings-row-label">Highlight last move</span>
+            <span class="switch"><input type="checkbox" id="toggleShowLastMoveHighlight"><span class="slider"></span></span>
+          </label>
+          <label class="settings-row">
+            <span class="settings-row-label">Highlight check</span>
+            <span class="switch"><input type="checkbox" id="toggleShowCheckHighlight"><span class="slider"></span></span>
+          </label>
+          <!-- (No Lichess token here: it's pasted on data.html
+               - its Token button - and explorer.js reads it from the
+               browser, explorer.js "THE TOKEN".) -->
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col">
+      <!-- Three boxes of their own, in browse mode, in this order:
+           the move list first, so it never moves when the engine or
+           the explorer is turned on; then the engine's lines; then
+           the explorer. Each shows and hides on its own - and is
+           hidden when there's no room for it beside the board
+           ([#20]). -->
+      <!-- the move list (browse mode) -->
+      <div class="box hidden" id="moveListBox">
+        <div id="moveList"></div>
+      </div>
+      <!-- the engine's lines, with Engine or Threat on - or one row
+           with a message instead: "Checkmate", "Stalemate", "No
+           threat while in check", or why Stockfish can't run
+           (engine.js "The engine lines") -->
+      <div id="engineLines" class="box hidden"></div>
+      <!-- the opening explorer (explorer.js, trainer.css [#12]),
+           turned on with the explorer button under the board: why
+           Lichess can't answer (only then), and the table of
+           moves -->
+      <div id="explorerBox" class="box hidden">
+        <div id="explorerStatus" class="hidden"></div>
+        <div id="explorerTable" class="hidden"></div>
+      </div>
+      <div class="box" id="commentBox">
+        <div id="commentText" class="empty">Select a chapter to begin.</div>
+        <!-- errors take the comment's place (errors.js [#1],
+             trainer.css [#14]) -->
+        <div id="pageWarnings">
+          <div id="pageWarnList"></div>
+          <div id="pageWarnHelp">The trainer is stopped. Fix the problem, then reload the page.</div>
+        </div>
+        <div id="commentScrollCue" aria-hidden="true" data-icon="scrollDown"></div>
+      </div>
+      <div class="alt-row" id="altRow">
+        <div class="box alt-box" id="altBox">
+          <div id="altText" class="empty"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- The button row, under the board and the boxes beside it -
+         the page grid's second row (trainer.css [#4], [#7]):
+         Settings, Mode and << < > >> under the board, as wide as it,
+         and the other tools under the boxes, as wide as them. -->
+    <!-- Settings, Mode, then << < > >>. At the end of a line, >>
+         becomes Next - the next-chapter icon - or stays >>, greyed out,
+         on the last chapter ([#6], trainer.css [#15]) -->
+    <div class="controls-nav">
+      <button class="ctrl" id="btnSettings" title="Settings" data-icon="settings"></button>
+      <!-- the mode button: opens the mode menu ([#2]) -->
+      <button class="ctrl" id="btnListMode" title="Mode"></button>
+      <button class="ctrl" id="btnStart" title="Start">&laquo;</button>
+      <button class="ctrl" id="btnPrev" title="Previous move">&lsaquo;</button>
+      <button class="ctrl" id="btnNext" title="Next move">&rsaquo;</button>
+      <button class="ctrl" id="btnEnd" title="End">&raquo;</button>
+    </div>
+    <!-- Comments, Explorer, Threat, Engine, Play/Stop -->
+    <div class="controls-tools">
+      <!-- the move comments on / off - lit while they're on ([#18],
+           [#23]) -->
+      <button class="ctrl" id="btnComments" title="Hide comments" aria-label="Comments" data-icon="comment"></button>
+      <!-- opening explorer on / off (explorer.js, [#23]) -->
+      <button class="ctrl" id="btnExplorer" title="Show the opening explorer" data-icon="chart"></button>
+      <!-- threat mode and the engine - only one of them on at a
+           time (engine.js, [#23]) -->
+      <button class="ctrl" id="btnThreat" title="Show threat" aria-label="Show threat" data-icon="threat"></button>
+      <button class="ctrl" id="btnEngine" title="Start Stockfish" aria-label="Engine" data-icon="engine"></button>
+      <button class="ctrl active" id="btnPractice" title="Toggle practice mode"></button>
+    </div>
+    <!-- The chapter row, across the whole page under the buttons (the
+         page grid's third row, trainer.css [#8]): the Link button
+         first, then the Chapter dropdown. In Library mode the Link
+         button, the color square and the Study dropdown sit under the
+         board, and the Chapter dropdown under the boxes ([#5]). -->
+    <div id="chapterRow">
+      <div class="chapter-left">
+        <!-- the open chapter on Lichess, at the move on the board ([#5]) -->
+        <button class="ctrl" id="btnChapterLink" title="Open this chapter on Lichess" aria-label="Open this chapter on Lichess" data-icon="link" disabled></button>
+        <!-- Library mode only: the color square (white or black - tap
+             to switch) and the Study dropdown ([#5]) -->
+        <button type="button" id="libraryColor" class="library-only"></button>
+        <select id="libraryStudy" class="library-only" title="Study"></select>
+      </div>
+      <select id="chapterSel"></select>
+    </div>
+  </div>
+  <!-- (No load buttons: the files are loaded on data.html,
+       and this page reads them from the browser - [#7]-[#10].) -->
+</div>
+<!-- covers the page while an error has it stopped (errors.js [#1],
+     trainer.css [#14]) -->
+<div id="pageStopCover"></div>
+
+<!-- Error messages. Placed before every other script on the
+     page so it's already listening when they run, and can catch an
+     error in any of them (see errors.js [#2]). -->
+<script src="errors.js"></script>
+
+<!-- If errors.js itself is missing, there's nothing to show errors
+     in the comment box - so state that file is missing and stop the
+     page (pageStopped true, the file check fails, so boot does
+     nothing). -->
+<script>
+if (typeof pageWarn === "undefined") {
+  window.pageWarn = function (msg) { try { console.warn(msg); } catch (e) {} };
+  window.pageStopped = function () { return true; };
+  window.checkExternalFiles = function () { return false; };
+  alert("errors.js is missing - keep it in the same folder as this page. The trainer can't run without it.");
+}
+</script>
+
+<!-- Chess legal-move engine. Must load before trainer script,
+     since it defines the global RULES object. -->
+<script src="rules.js"></script>
+
+<!-- Reading the two .jsonl files + the SR / random / puzzle /
+     Library lists.
+     Must load after errors.js and before trainer script, since
+     it defines the global FILTER object. -->
+<script src="filter.js"></script>
+
+<!-- Piece artwork (cburnett SVG set). Must load before trainer
+     script, since it defines the global PIECE_SVG object. -->
+<script src="pieces.js"></script>
+
+<!-- The board: drawing, taps and drags, piece slides, resize.
+     Must load before trainer script, since it defines the
+     global BOARD object. -->
+<script src="board.js"></script>
+
+<!-- UI icons (gear, calendar, arrows, play/stop...). Fills in every
+     element above that has a data-icon="..." attribute, so it must
+     load after the page markup and before trainer script. -->
+<script src="icons.js"></script>
+
+<!-- Stockfish engine analysis ([#22]). Without it the trainer
+     stops with an error, like for any missing file. -->
+<script src="engine.js"></script>
+
+<!-- Lichess opening explorer and data collection ([#22]). Without
+     it the trainer stops with an error, like for any missing file. -->
+<script src="explorer.js"></script>
+
+<script>
+/*==================================================================
+ * CHAPTERS & FILES - sections [#1]-[#10]
+ * WHICH chapter is on the board: the chapter list for the current
+ * mode (picked in the mode menu) and the SR date, the Chapter
+ * dropdown and Link button (and the Library's color square and
+ * Study dropdown), opening a chapter and moving on to the next one, and
+ * the two trainer files the lists come from (openings.jsonl and
+ * puzzles.jsonl, written by the Python build scripts, and loaded on
+ * data.html). HOW the open chapter is played is GAMEPLAY & APP,
+ * below.
+ *
+ * Reading the files and building the lists is done by filter.js.
+ * This part only asks it for:
+ *   FILTER.read(text, kind) ............. a saved file -> its pool
+ *                                         ([#7])
+ *   FILTER.list(mode, pool, date, pick) . the list for a mode ([#2])
+ *   FILTER.studies(pool, side) .......... the Library's Study
+ *                                         dropdown ([#5])
+ * See filter.js for the details, the daily shuffle and the SR
+ * schedule. The chapters themselves are used as they come: the
+ * build already checked every one with python-chess
+ * (jsonl_writer.py [#8]).
+ *
+ * A CHAPTER is an object straight from the file, with these fields
+ * (a field at its default is left out of the file - read a missing
+ * one as its default; jsonl_writer.py [#2] and the README list
+ * them all):
+ *   study, chapter ........ its Lichess study's and chapter's names
+ *   id .................... its Lichess study and chapter IDs,
+ *                           "FjELOsQl/HBcwXFLi" - its identity
+ *                           (chapterKey, [#4]) and its link
+ *                           (LICHESS_STUDY_URL + id, [#5])
+ *   heading ............... the heading it's under in its study
+ *                           (openings only; the Library groups by
+ *                           it - [#5])
+ *   side .................. "w"/"b": the side you play
+ *   date .................. "YYYY-MM-DD": the day its spaced
+ *                           repetition starts
+ *   fen ................... its starting position (left out = the
+ *                           normal start)
+ *   blindfold ............. true for a blindfold puzzle ([#12])
+ *   info .................. true for an INFO chapter - left out
+ *                           of Random openings only (filter.js)
+ *   preamble .............. text shown before move 1
+ *   moves ................. each { uci, annotation, eval, comment,
+ *                           circles, arrows, altUci, end }
+ * The file names no move: a move is only its uci. When a chapter
+ * opens, nameMoves ([#4]) adds each move's name to it - san ("Nf3",
+ * "O-O", "Qh2#") and altSan (its ALT: moves', "...Nf6" for Black's) -
+ * and everything here reads those.
+ *==================================================================*/
+
+/*==================================================================
+ * [#1] CHAPTER STATE — the chapter list for the current mode, the
+ * chapter that's open, and the list mode.
+ *==================================================================*/
+var chapters = [];       // the list for the current mode ([#2])
+var currentChapter = 0;  // the open chapter: its index in `chapters`
+// The open chapter's moves and the side you play in it (its
+// "side": "w" or "b") - both set by loadChapter ([#4]).
+var chapterMoves = [];
+var side = "w";
+
+// Four list modes, picked in the mode menu (the mode button, [#2]),
+// in the menu's order:
+//   "sr"      - spaced-repetition list from the openings file
+//   "random"  - today's random 50 from the openings file
+//   "library" - chapters you pick yourself from the openings file:
+//               one study's chapters of one color ([#5])
+//   "puzzle"  - today's random 50 from the puzzles file (no SR)
+var LIST_MODES = ["sr", "random", "library", "puzzle"];
+// The current mode. Saved; restored at boot by loadSavedSettings
+// ([#21]).
+var listMode = "sr";
+
+// What's picked in the Library's color square and Study dropdown
+// ([#5]): side "w"/"b" (White to start with), and for each color the
+// study picked with it - w and b, a study's name or "" for none yet.
+// Each color keeps its own study, so switching to Black and back to
+// White finds White's study still there. (The chapter you had open
+// is remembered for each color too - [#4].) Saved; restored at boot
+// by loadSavedSettings ([#21]).
+var libraryPick = { side: "w", w: "", b: "" };
+
+// Which file (pool slot, see [#7]) a list mode draws from.
+function listSlot() { return listMode === "puzzle" ? "puzzles" : "openings"; }
+
+/*==================================================================
+ * [#2] CHAPTER LIST — (re)builds `chapters` for the current mode
+ * from its file's pool ([#7]), and the mode button with its menu,
+ * where the mode is picked.
+ *==================================================================*/
+// The list itself comes from filter.js. srViewDate is
+// only used for the SR list, libraryPick only for the Library's -
+// its color, and the study picked with that color.
+function buildChapterList() {
+  var pick = { side: libraryPick.side, study: libraryPick[libraryPick.side] };
+  return FILTER.list(listMode, pools[listSlot()], srViewDate, pick);
+}
+
+// Re-derives the chapter list from the already-loaded pool (no
+// refetch) and reloads the dropdown/board - used at startup, when
+// a mode is picked in the mode menu (except SR or Random -> Library
+// with a chapter open, which keeps the board as it is -
+// carryChapterToLibrary, [#5]), when the SR date changes, and when
+// the Library's color or study is changed ([#5]).
+function refreshChapterList() {
+  chapters = buildChapterList();
+  updateLibraryRow();
+  populateChapterSelect();
+  if (!chapters.length) {
+    var slot = listSlot();
+    clearBoard(!pools[slot].length
+      ? noFileText(slot) // ([#9])
+      : listMode === "sr"
+        ? "No chapters due for spaced repetition today."
+        : listMode === "library"
+          ? "Pick a study." // (the Library's Study dropdown, [#5])
+          : "No chapters selected for study.");
+    return;
+  }
+  var idx = findRememberedChapterIndex();
+  loadChapter(idx >= 0 ? idx : 0);
+}
+
+// Each mode's icon (from icons.js) and name. The mode button shows
+// the active mode's icon; the mode menu shows every mode's icon and
+// name.
+var LIST_MODE_INFO = {
+  sr:      { icon: "calendar", name: "Spaced repetition" },
+  random:  { icon: "shuffle",  name: "Random openings" },
+  puzzle:  { icon: "puzzle",   name: "Puzzles" },
+  library: { icon: "library",  name: "Library" }
+};
+function updateListModeButton() {
+  var info = LIST_MODE_INFO[listMode];
+  var btn = el("btnListMode");
+  btn.innerHTML = icon(info.icon);
+  btn.title = "Mode: " + info.name;
+}
+
+// ---- The mode menu ---------------------------------------------
+// The mode button opens it: a pop-up over the bottom of the board,
+// like the Settings menu ([#21]) - same look (trainer.css [#9]), and
+// tapping outside it closes it. One row per mode, in LIST_MODES
+// order, each its icon and name; the active mode's row is lit up.
+// Tapping a row picks that mode and closes the menu (tapping the
+// active one just closes it).
+
+// Makes the rows, once, from LIST_MODES and LIST_MODE_INFO - so the
+// names and icons are only written down there. Called by wireUI
+// ([#23]), which also wires the backdrop (wireModeMenu, below).
+function buildModeMenu() {
+  var rows = el("modeMenuRows");
+  LIST_MODES.forEach(function (m) {
+    var info = LIST_MODE_INFO[m];
+    var row = document.createElement("button");
+    row.type = "button";
+    row.className = "mode-row";
+    row.dataset.mode = m;
+    row.innerHTML = icon(info.icon);
+    var name = document.createElement("span");
+    name.textContent = info.name;
+    row.appendChild(name);
+    row.addEventListener("click", function () { pickListMode(m); });
+    rows.appendChild(row);
+  });
+}
+
+function openModeMenu() {
+  // light up the active mode's row
+  var rows = el("modeMenuRows").children;
+  for (var i = 0; i < rows.length; i++) {
+    rows[i].classList.toggle("active", rows[i].dataset.mode === listMode);
+  }
+  el("modeMenuBackdrop").classList.remove("hidden");
+  positionModeMenu();
+}
+function closeModeMenu() { el("modeMenuBackdrop").classList.add("hidden"); }
+function modeMenuOpen() { return !el("modeMenuBackdrop").classList.contains("hidden"); }
+
+// Placed like the Settings menu - its bottom edge on the board's
+// bottom edge - but with its left edge over the mode button's
+// (placeMenu, [#21]).
+function positionModeMenu() {
+  placeMenu(el("modeMenu"), el("btnListMode").getBoundingClientRect().left);
+}
+
+// A mode picked in the mode menu. Library picked from Spaced
+// repetition or Random openings, with a chapter open, opens on that
+// same chapter, at the same move - nothing on the board changes, only
+// the chapter row (carryChapterToLibrary, [#5]). From anywhere else
+// (Puzzles, or an empty SR list) the Library opens as usual, on the
+// chapter it remembers for its color.
+function pickListMode(m) {
+  closeModeMenu();
+  if (m === listMode) return;
+  var carry = m === "library" && (listMode === "sr" || listMode === "random") &&
+    !!chapters[currentChapter];
+  listMode = m;
+  saveSetting("listMode", listMode);
+  updateListModeButton();
+  if (carry) carryChapterToLibrary();
+  else refreshChapterList();
+}
+
+// The backdrop: tapping outside the menu closes it - "click", as
+// for the Settings menu ([#21]), so the tap that closes it doesn't
+// go through to whatever is underneath.
+function wireModeMenu() {
+  el("modeMenuBackdrop").addEventListener("click", function (e) {
+    if (e.target === el("modeMenuBackdrop")) closeModeMenu();
+  });
+  window.addEventListener("resize", function () {
+    if (modeMenuOpen()) positionModeMenu();
+  });
+}
+
+/*==================================================================
+ * [#3] SR DATE — the date picked with the arrows in Settings. It
+ * only changes the SR list; the random openings and puzzles always
+ * follow the real calendar date. The SR schedule itself is in
+ * filter.js; the date row's buttons are wired with the rest of the
+ * Settings panel ([#21]).
+ *==================================================================*/
+// Real calendar "today", zeroed to midnight - where srViewDate
+// starts, and where tapping the date label jumps back to. The page's
+// only one: filter.js uses it too (when it's called, never at load).
+function realToday() {
+  var d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+// The same day as text, "YYYY-MM-DD" (the iPad's own calendar day) -
+// the seed for the daily shuffle (filter.js [#2]), and the date on an
+// explorer answer (explorer.js [#4]).
+function todayString() {
+  var d = realToday();
+  var mm = d.getMonth() + 1, dd = d.getDate();
+  return d.getFullYear() + "-" + (mm < 10 ? "0" : "") + mm + "-" + (dd < 10 ? "0" : "") + dd;
+}
+
+// The date the SR list is built for (not the random lists - those
+// always use the real date). Defaults to the real today on every
+// fresh load (this is a plain var, never written to localStorage -
+// see the settings-panel date nav below), and can be walked forward
+// or backward via the Settings popup - backward to review what was
+// due on a missed day, forward to preview what will be due later.
+var srViewDate = realToday();
+
+function isViewingToday() { return srViewDate.getTime() === realToday().getTime(); }
+
+// Moves srViewDate by deltaDays (either direction - no clamping, so
+// it can be browsed into the future as well as the past). Re-derives
+// the chapter list so the change takes effect immediately, and
+// refreshes the settings-panel date label.
+function shiftSRViewDate(deltaDays) {
+  var d = new Date(srViewDate);
+  d.setDate(d.getDate() + deltaDays);
+  srViewDate = d;
+  updateDateNavUI();
+  // date only affects the SR list
+  if (listMode === "sr") refreshChapterList();
+}
+
+// "Sep 17" - no year, and no relative "Today"/"Yesterday" wording.
+function formatDateNavLabel(d) {
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+// Refreshes the Settings-panel date label to match srViewDate.
+function updateDateNavUI() {
+  el("dateNavLabel").textContent = formatDateNavLabel(srViewDate);
+}
+
+// A NEW DAY - the page can stay open for days, but the lists are only
+// built when something asks for them (start-up, the mode button, the
+// SR date, loading a file). So when the page comes back into view
+// (back to the Code app, the iPad woken up) on a different calendar
+// day than the list was built for, it's built again: the random
+// openings and puzzles get the new day's shuffle (filter.js [#2]),
+// and the SR date moves on to today - unless it had been stepped to
+// another day in Settings, which is left where it was. Only the
+// current mode's list is rebuilt; the others are built fresh anyway
+// when the mode menu switches to them. Not on a timer: with the
+// screen left on through midnight, it happens the next time the page
+// comes back into view. Wired once, from boot ([#25]).
+var listDay = realToday().getTime();
+
+function wireDayChange() {
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden || pageStopped()) return;
+    var today = realToday().getTime();
+    if (today === listDay) return;
+    if (srViewDate.getTime() === listDay) {
+      srViewDate = realToday();
+      updateDateNavUI();
+    }
+    listDay = today;
+    refreshChapterList();
+  });
+}
+
+/*==================================================================
+ * [#4] OPENING A CHAPTER — loadChapter opens one (and remembers
+ * it, per mode, for next time), naming its moves first (nameMoves);
+ * clearBoard is its opposite, for when the list is empty.
+ *==================================================================*/
+function loadChapter(idx) {
+  // Nothing opens while an error has the page stopped (errors.js [#1]).
+  if (pageStopped()) return;
+  currentChapter = idx;
+  nameMoves(chapters[idx]);
+  chapterMoves = chapters[idx].moves;
+  side = chapters[idx].side; // "w" or "b"
+  BOARD.setOrientation(side);
+  currentPly = 0;
+  piecesHidden = isBlindChapter(); // a blindfold puzzle starts hidden ([#12])
+  BOARD.clearSelection();
+  el("chapterSel").value = idx;
+  el("btnChapterLink").disabled = !chapters[idx].id;
+  saveLastChapterKey(chapterKey(chapters[idx]));
+  // The explorer works in an opening chapter only - never in a
+  // puzzle - and the chapter's Lichess data is collected in the
+  // background (explorer.js [#7], [#10]).
+  EXPLORER.chapterOpened(listSlot() === "openings" ? chapters[idx] : null);
+  // A new (or restarted) chapter never keeps the old analysis
+  // line. The engine, if on, just moves on to the new position.
+  clearAnalysis();
+  renderMoveList();
+  // Auto practice mode: back into Practice if you'd switched to
+  // browse (setMode then goes to the chapter's start itself).
+  if (autoPractice && mode !== "practice") { setMode("practice"); return; }
+  goToPly(0, true);
+}
+
+// The file gives each move as its uci only (jsonl_writer.py [#2]).
+// This adds the names the page shows, by replaying the chapter's
+// line once with rules.js - the same SAN python-chess writes:
+//   san ..... the move's name: "Nf3", "exd5", "O-O", "e8=Q+", "Qh2#"
+//             - the move list ([#19]), and the check glow and badges
+//             while a move slides in (board.js [#5])
+//   altSan .. its ALT: moves' names, Black's with "..." in front
+//             ("...Nf6") - the ALT box ([#18])
+// Done the first time a chapter opens, and kept on it (the chapter
+// is the pool's own object, so it's named once per file load).
+function nameMoves(ch) {
+  if (ch.named) return;
+  var pos = new RULES.Position(ch.fen || undefined);
+  for (var i = 0; i < ch.moves.length; i++) {
+    var mv = ch.moves[i];
+    var legal = pos.legalMoves();
+    var m = pos.findUci(mv.uci, legal);
+    if (!m) break; // (can't happen - the build checked every move)
+    mv.san = pos.sanOf(m, legal);
+    if (mv.altUci) {
+      var dots = pos.turn === "b" ? "..." : "";
+      mv.altSan = mv.altUci.map(function (uci) {
+        var alt = pos.findUci(uci, legal);
+        return alt ? dots + pos.sanOf(alt, legal) : uci;
+      });
+    }
+    pos.apply(m);
+  }
+  ch.named = true;
+}
+
+// An empty list (no file loaded for this mode yet, or nothing
+// due for SR) shows the plain starting position with nothing to play,
+// rather than leaving the previous mode's chapter on the board.
+function clearBoard(message) {
+  settleBoard();
+  BOARD.closePromoPicker();
+  chapterMoves = [];
+  currentPly = 0;
+  piecesHidden = false;
+  BOARD.clearSelection();
+  game.pos = new RULES.Position();
+  game.moves = [];
+  el("btnChapterLink").disabled = true;
+  clearAnalysis();
+  ENGINE.shutDown(); // Nothing to analyze without a chapter
+  EXPLORER.chapterOpened(null); // (no chapter: the explorer's off)
+  EXPLORER.positionChanged(); // (shows nothing with no chapter)
+  el("moveList").innerHTML = "";
+  hideNoteGate();
+  hideEndOfLine();
+  updateControls();
+  renderAltText(null);
+  BOARD.render();
+  showLoadPrompt(message);
+  // (the boxes beside the board may have gone - refit the column, [#20])
+  syncNotesHeight();
+}
+
+function showLoadPrompt(message) {
+  var box = el("commentText");
+  box.textContent = message;
+  box.className = "empty";
+}
+
+// Stable identity for a chapter, independent of its index (which
+// shifts around as the random-50/SR lists get rebuilt) - every
+// chapter comes from a Lichess study and has its study and chapter
+// IDs (id, "FjELOsQl/HBcwXFLi"), so that's a reliably unique key on
+// its own.
+function chapterKey(ch) {
+  return ch.id;
+}
+
+// Remembers which chapter was last open, kept separately per list
+// mode ("sr" / "random" / "puzzle") since they're different lists -
+// and in the Library separately for each color ("library-w" /
+// "library-b"), so switching color and back reopens the chapter you
+// had open with that color. (Picking a different study opens its
+// first chapter.)
+// Saved with the other settings ([#21]) as "lastChapter".
+function chapterMemorySlot() {
+  return listMode === "library" ? "library-" + libraryPick.side : listMode;
+}
+function saveLastChapterKey(key) {
+  var last = loadSettings().lastChapter || {};
+  last[chapterMemorySlot()] = key;
+  saveSetting("lastChapter", last);
+}
+function loadLastChapterKey() {
+  var last = loadSettings().lastChapter;
+  return (last && last[chapterMemorySlot()]) || null;
+}
+// Index in the current `chapters` list of the remembered chapter for
+// the active mode, or -1 if there isn't one (or it's no longer here).
+function findRememberedChapterIndex() {
+  var key = loadLastChapterKey();
+  if (!key) return -1;
+  for (var i = 0; i < chapters.length; i++) {
+    if (chapterKey(chapters[i]) === key) return i;
+  }
+  return -1;
+}
+
+/*==================================================================
+ * [#5] CHAPTER DROPDOWN & LINK — labels and fills the Chapter
+ * <select>, and the Link button (in front of it) that opens the
+ * chapter on Lichess. In Library mode, also the color square and the
+ * Study dropdown in front of the Chapter one (see THE LIBRARY'S ROW,
+ * below).
+ *==================================================================*/
+// Names come only from the study and chapter names.
+// Chapters in the dropdown come from many different opening files
+// at once, so the study name leads.
+function chapterLabel(ch) {
+  var study = (ch.study || "").trim();
+  var chapter = (ch.chapter || "").trim();
+  if (study && chapter) return study + ": " + chapter;
+  return study || chapter || "Untitled chapter";
+}
+
+// With "Show name" off (showChapterName, [#21]) the label is
+// just "#N", so the chapter's name isn't given away while it's
+// being reviewed.
+// In the Library it's just the chapter's name - no "#N", and no
+// study (it has its own dropdown) - always: picking by name is what
+// the Library is for, so the setting doesn't apply there.
+function chapterOptionLabel(ch, i) {
+  if (listMode === "library") return (ch.chapter || "").trim() || "Untitled chapter";
+  var label = "#" + (i + 1);
+  return showChapterName ? label + " · " + chapterLabel(ch) : label;
+}
+
+// Fills the Chapter dropdown from `chapters`. Each option's value is
+// the chapter's index in `chapters`.
+// In the Library, the chapters are grouped under their headings (a
+// chapter's "heading", from the "_" chapters on Lichess): each run
+// of chapters with the same heading goes in an <optgroup>, which the
+// iPad shows as a grey section title that can't be picked. Chapters
+// with no heading (before a study's first heading) sit outside any
+// group. The order is the list's own, so Next chapter still goes
+// straight down the list, through the headings. The other modes mix
+// many studies, so they never group.
+function populateChapterSelect() {
+  var sel = el("chapterSel");
+  sel.innerHTML = "";
+  var group = null; // the <optgroup> being filled, if any
+  chapters.forEach(function (ch, i) {
+    var opt = document.createElement("option");
+    opt.value = i;
+    opt.textContent = chapterOptionLabel(ch, i);
+    var heading = listMode === "library" ? (ch.heading || "") : "";
+    if (!heading) {
+      group = null;
+      sel.appendChild(opt);
+      return;
+    }
+    if (!group || group.label !== heading) {
+      group = document.createElement("optgroup");
+      group.label = heading;
+      sel.appendChild(group);
+    }
+    group.appendChild(opt);
+  });
+  // The Library with no study picked yet: the dropdown says
+  // "Chapter" and is greyed out (THE LIBRARY'S ROW, below).
+  var waiting = listMode === "library" && !chapters.length;
+  if (waiting) addOption(sel, "", "Chapter");
+  sel.disabled = waiting;
+  // Keeps the open chapter selected when the list is relabeled
+  // in place (the "Show name" toggle) rather than rebuilt.
+  if (currentChapter < chapters.length) sel.value = currentChapter;
+}
+
+// One <option> on the end of a dropdown.
+function addOption(sel, value, text) {
+  var opt = document.createElement("option");
+  opt.value = value;
+  opt.textContent = text;
+  sel.appendChild(opt);
+}
+
+// ---- THE LIBRARY'S ROW -------------------------------------------
+// In Library mode the chapter row holds:
+//   the color square ... white or black - the side you play. White
+//                        to start with; tap it to switch.
+//   Study .............. every study with chapters of that color,
+//                        A-Z (FILTER.studies)
+//   Chapter ............ that study's chapters of that color, in file
+//                        order - the Chapter dropdown itself, filled
+//                        from `chapters` like in every mode
+//                        (FILTER.list "library")
+// The Chapter dropdown is greyed out, and says "Chapter", until a
+// study is picked; Study says "Study" until then. Each color keeps
+// its own study and chapter: switching color goes back to the study
+// and chapter you last had with that color ([#1], [#4]). Picking a
+// study opens its first chapter.
+// Next (>> at the end of a line) and the p n keys go through that
+// study's chapters ([#6]).
+// The row runs the whole width of the page, the Link button first. In
+// Library mode it's split where the board ends: the Link button, the
+// color square and Study under the board, Chapter under the boxes
+// beside it (in the narrow, stacked layout: split under the gap
+// between << and < - trainer.css [#16]). A name too long for its
+// dropdown is simply cut off at the edge (trainer.css [#8]).
+// Shown only in Library mode: the row gets the class "library".
+// Coming from Spaced repetition or Random openings, the Library opens
+// on the chapter you were on, with the color and study set to match
+// (carryChapterToLibrary, below).
+
+// Shows the color square and refills the Study dropdown from
+// libraryPick, and shows or hides them for the current mode. Called
+// by refreshChapterList ([#2]), so it's up to date whenever the
+// list is.
+function updateLibraryRow() {
+  var on = listMode === "library";
+  el("chapterRow").classList.toggle("library", on);
+  if (!on) return;
+  var black = libraryPick.side === "b";
+  var square = el("libraryColor");
+  square.classList.toggle("black", black);
+  square.title = black ? "Playing Black - tap for White" : "Playing White - tap for Black";
+  square.setAttribute("aria-label", square.title);
+  var studies = FILTER.studies(pools.openings, libraryPick.side);
+  fillStudySelect(studies, libraryPick[libraryPick.side]);
+}
+
+// Fills the Study dropdown with the study names and selects
+// `picked`. If `picked` isn't one of them (no study picked yet, or a
+// study that's no longer in a newly loaded file), "Study" goes first
+// as a choice of its own, and is what it shows.
+function fillStudySelect(names, picked) {
+  var sel = el("libraryStudy");
+  sel.innerHTML = "";
+  var found = names.indexOf(picked) !== -1;
+  if (!found) addOption(sel, "", "Study");
+  names.forEach(function (name) { addOption(sel, name, name); });
+  sel.value = found ? picked : "";
+}
+
+// The color square tapped: the other color, with the study and
+// chapter you last had with it (if any).
+function switchLibraryColor() {
+  libraryPick.side = libraryPick.side === "b" ? "w" : "b";
+  saveSetting("libraryPick", libraryPick);
+  refreshChapterList();
+}
+
+// A study picked: its chapters of that color become the list.
+function pickLibraryStudy(study) {
+  libraryPick[libraryPick.side] = study;
+  saveSetting("libraryPick", libraryPick);
+  refreshChapterList();
+}
+
+// Library picked in the mode menu from Spaced repetition or Random
+// openings, with a chapter open (pickListMode, [#2] - listMode is
+// already "library", but `chapters` is still the old mode's list):
+// the Library opens on that same chapter. Its color and study become
+// the chapter's own, and it becomes the chapter the Library remembers
+// for that color - replacing whatever study and chapter were
+// remembered there before.
+// Only the chapter row changes (the color square, the Study dropdown,
+// the Chapter dropdown with the study's chapters under their
+// headings). It deliberately doesn't go through loadChapter or
+// goToPly: the board, the move you're on, Practice or browse, the
+// analysis line, an opponent reply still to come, the engine and the
+// explorer all carry on as they were. Both lists come from the same
+// openings pool, so the chapter is the very same object in the new
+// list - chapterMoves and the rest still point at it.
+// From here on Next and the p n keys go through that study's
+// chapters, like any Library list. Picking Spaced repetition or
+// Random openings again reopens the chapter you left, at its start
+// (its own remembered chapter, [#4]).
+function carryChapterToLibrary() {
+  var ch = chapters[currentChapter];
+  libraryPick.side = ch.side;
+  libraryPick[ch.side] = ch.study;
+  saveSetting("libraryPick", libraryPick);
+  var list = buildChapterList();
+  var idx = -1;
+  for (var i = 0; i < list.length; i++) {
+    if (chapterKey(list[i]) === chapterKey(ch)) { idx = i; break; }
+  }
+  // (can't happen - the chapter's own color and study always list it -
+  // but if it ever did, the Library just opens the usual way)
+  if (idx < 0) { refreshChapterList(); return; }
+  chapters = list;
+  currentChapter = idx;
+  updateLibraryRow();
+  populateChapterSelect();
+  saveLastChapterKey(chapterKey(ch));
+  // At the end of the line, Next (>>) now means the next chapter of
+  // the study - or >> greys out, if it's the study's last.
+  if (endOfLineShowing()) showEndOfLine();
+}
+
+// Every chapter's link is this plus its id ("FjELOsQl/HBcwXFLi") -
+// the files hold only the id, so the link is written down only here.
+var LICHESS_STUDY_URL = "https://lichess.org/study/";
+
+// The Link button: the open chapter on Lichess, at the move on the
+// board.
+function openChapterLink() {
+  var id = chapters[currentChapter] && chapters[currentChapter].id;
+  if (!id) return;
+  var url = LICHESS_STUDY_URL + id;
+  if (currentPly > 0) url += "#" + currentPly;
+  //window.open(url, "_blank", "noopener");
+  // forces a web app to open a new tab in safari
+  window.open(url.replace(/^https:/, "x-safari-https:"), "_blank", "noopener");
+}
+
+/*==================================================================
+ * [#6] NEXT CHAPTER — the end of a line, where the >> button turns
+ * into Next (the next-chapter icon, lit blue: the next chapter in the
+ * list) - or, on the last one, stays >> and greys out - and stepping
+ * through the list (the p and n keys, [#24]).
+ *
+ * The end of a line is the end of the BOOK line - on the analysis
+ * line, >> stays >> (the end of your own line). Only >> moves on to
+ * the next chapter (and the n key, [#24]) - not a tap on the comment
+ * box, which there may be a long comment to scroll through. Going back
+ * to the start is << - in Practice that plays the line again.
+ *
+ * For NEXT_LOCK_MS after >> turns into Next, taps on it are ignored,
+ * so a quick double tap on >> (or a second tap right after your last
+ * move) can't skip past the end of the line before you've seen it.
+ * The look of Next is in trainer.css [#15].
+ *==================================================================*/
+var NEXT_LOCK_MS = 500;
+var endOfLine = false;   // the board is at the end of the book line
+var nextLockUntil = 0;   // >> as Next ignores taps until then
+
+function isLastChapter() {
+  return chapters.length === 0 || currentChapter >= chapters.length - 1;
+}
+
+// The end of the line reached (finishGoToPly, [#13]) - or, at the end
+// already, the chapter list changed under it (carryChapterToLibrary,
+// [#5]): >> becomes Next (or greys out on the last chapter).
+function showEndOfLine() {
+  if (!endOfLine) nextLockUntil = Date.now() + NEXT_LOCK_MS;
+  endOfLine = true;
+  updateControls();
+}
+function hideEndOfLine() {
+  endOfLine = false;
+  updateControls();
+}
+function endOfLineShowing() { return endOfLine; }
+
+// >> as it looks now: », or at the end of the line Next (the
+// next-chapter icon, lit like an "on" button) - but on the last
+// chapter just », greyed out (there's no next one). Called by
+// updateControls ([#13]), which has already greyed » out at the end
+// of a line, so it only lights it up again for Next.
+function updateEndButton() {
+  var btn = el("btnEnd");
+  var next = endOfLine && !isLastChapter();
+  if (next) btn.disabled = false;
+  if (btn.classList.contains("next-chapter") === next && btn.firstChild) return;
+  btn.classList.toggle("next-chapter", next);
+  if (next) btn.innerHTML = icon("next");
+  else btn.textContent = "»";
+  btn.title = next ? "Next chapter" : "End";
+}
+
+// The >> button: to the end of the line - or, there, Next (after its
+// NEXT_LOCK_MS): the next chapter. Nothing on the last chapter.
+function endButton() {
+  if (!endOfLine) { navEnd(); return; }
+  if (Date.now() < nextLockUntil || isLastChapter()) return;
+  loadChapter(currentChapter + 1);
+}
+
+// Loads the chapter `delta` steps away in the current list (+1 next,
+// -1 previous), or does nothing if that would run off either end.
+function stepChapter(delta) {
+  var idx = currentChapter + delta;
+  if (idx < 0 || idx >= chapters.length) return;
+  loadChapter(idx);
+}
+
+/*==================================================================
+ * [#7] TRAINER FILES — every chapter of the two files (read by
+ * filter.js), as data.html saved them in the browser ([#8]).
+ * 2 files are held at once, so switching modes never needs a reload.
+ *   pools.openings - openings.jsonl (SR, random and Library modes)
+ *   pools.puzzles  - puzzles.jsonl (puzzle mode)
+ * They're read once, at start-up ([#10]): load new files on
+ * data.html first, then open (or reload) the trainer.
+ *==================================================================*/
+var pools = { openings: [], puzzles: [] };
+
+// Why a slot's saved copy couldn't be used, or "" - shown on the
+// empty board ([#9]).
+var fileProblems = { openings: "", puzzles: "" };
+
+// A saved file's text -> its slot's pool. data.html only
+// saves a file it has checked, so this is only for a copy saved by an
+// older trainer (an old .pgn - filter.js [#1]): it's not used, and
+// the board says why ([#9]).
+function useFile(slot, text, filename) {
+  var read = FILTER.read(text, slot);
+  if (read.problem) {
+    fileProblems[slot] = (filename || "The saved file") + " " + read.problem;
+    return;
+  }
+  pools[slot] = read.chapters;
+}
+
+/*==================================================================
+ * [#8] FILE CACHE (INDEXEDDB) — where the openings and puzzles files
+ * are kept in the browser, each under its own key
+ * (FILE_CACHE_KEYS), as { text, filename, savedAt }. data.html
+ * puts them there (its Openings and Puzzles buttons); this page
+ * only reads them. The files themselves never leave the iPad.
+ *==================================================================*/
+var FILE_CACHE_DB = "trainerDB";
+var FILE_CACHE_STORE = "files";
+var FILE_CACHE_KEYS = { openings: "openings", puzzles: "puzzles" };
+
+function openFileCacheDB() {
+  return new Promise(function (resolve, reject) {
+    var req = indexedDB.open(FILE_CACHE_DB, 1);
+    req.onupgradeneeded = function (e) {
+      e.target.result.createObjectStore(FILE_CACHE_STORE);
+    };
+    req.onsuccess = function (e) { resolve(e.target.result); };
+    req.onerror = function (e) { reject(e.target.error); };
+  });
+}
+
+function loadCachedFile(slot) {
+  return openFileCacheDB().then(function (db) {
+    return new Promise(function (resolve, reject) {
+      var tx = db.transaction(FILE_CACHE_STORE, "readonly");
+      var req = tx.objectStore(FILE_CACHE_STORE).get(FILE_CACHE_KEYS[slot]);
+      req.onsuccess = function () { resolve(req.result || null); };
+      req.onerror = function (e) { reject(e.target.error); };
+    });
+  });
+}
+
+/*==================================================================
+ * [#9] NO FILE YET — what the board says when the current mode's
+ * file isn't in the browser: none saved yet (or the browser's data
+ * was cleared), or a saved copy that couldn't be used ([#7]). Either
+ * way, the fix is on data.html.
+ *==================================================================*/
+// The data page's file name - here, and for the Settings menu's
+// folder button, which opens it ([#21]).
+var DATA_PAGE = "data.html";
+
+function noFileText(slot) {
+  if (fileProblems[slot]) return fileProblems[slot] + ".";
+  return "No " + slot + " file yet. Load " + slot + ".jsonl on " +
+    DATA_PAGE + ", then reload this page.";
+}
+
+/*==================================================================
+ * [#10] STARTUP LOAD — reads both saved files (IndexedDB) at launch,
+ * then shows the current mode's list.
+ *==================================================================*/
+// A slot with nothing saved yet just has an empty pool ([#9]). A
+// saved file that can't be read from IndexedDB is a real failure,
+// listed in the comment box (and stops the page, like every error).
+function startupLoadSlot(slot) {
+  return loadCachedFile(slot).then(function (record) {
+    if (record && record.text) useFile(slot, record.text, record.filename);
+  }, function (err) {
+    pageWarn("Could not read the saved " + slot + " file: " + ((err && err.message) || err));
+  });
+}
+
+function startupLoadFiles() {
+  Promise.all([startupLoadSlot("openings"), startupLoadSlot("puzzles")])
+    .then(startCurrentList);
+}
+
+// Shows the current mode's list, and starts practice if there's
+// anything in it.
+function startCurrentList() {
+  refreshChapterList();
+  if (chapters.length) setMode("practice");
+}
+
+/*==================================================================
+ * GAMEPLAY & APP - sections [#11]-[#25]
+ * HOW the open chapter is played - moving through it, practice, the
+ * comments and move list beside the board - and the app around it:
+ * settings, buttons, keys, start-up.
+ *==================================================================*/
+
+/*==================================================================
+ * [#11] HELPERS — small tools used all over the page (board.js,
+ * engine.js and explorer.js too): el(), a pointerup-first tap binder
+ * (to dodge a mobile ghost-click quirk), how far a tap can move, and
+ * double-tap-zoom prevention.
+ *==================================================================*/
+function el(id) { return document.getElementById(id); }
+
+// How far (px) a touch can move and still be a tap - any further and
+// it's a drag or a scroll. The one setting for it, everywhere:
+//   - the board: a piece pressed and moved further starts dragging it
+//     (board.js [#11]); less is a tap, for tap-to-move
+//   - the comment box: moved further, it's a scroll, and doesn't tap
+//     past a comment ([#23])
+//   - a move in an engine line (engine.js "Tapping a move in a line")
+//     and a move in the explorer's table (explorer.js [#9]): moved
+//     further, it's a scroll, and the move isn't played
+var TAP_SLOP = 4;
+
+// An icon from icons.js, for the buttons whose icon the script swaps
+// (the mode button, Play/Stop). Every data-icon="..." in the markup
+// is checked at boot (errors.js [#3]); these are checked here, when
+// they're used. A name icons.js doesn't have is an error.
+function icon(name) {
+  if (!ICONS[name]) pageWarn('icons.js has no icon named "' + name + '"');
+  return ICONS[name] || "";
+}
+
+// The >> button turns into Next ([#6]) right as the user finishes a
+// move/line - i.e. it changes (and goes from dimmed to tappable)
+// inside the same handling as a touch/click gesture that just ended.
+// On some mobile browsers a button that changes "mid-gesture"
+// like that eats the very next tap (a stale hit-test/ghost-click
+// quirk), so the first tap looks like it does nothing and a
+// second tap is needed. Binding to "pointerup" (same reliable
+// event the board's own drag/tap already uses) instead of "click"
+// fires immediately and sidesteps that quirk; the guarded "click"
+// fallback keeps keyboard/assistive-tech activation working
+// without double-firing when a browser also sends a trailing click.
+function bindTap(node, handler) {
+  var firedByPointer = false;
+  node.addEventListener("pointerup", function (e) {
+    firedByPointer = true;
+    e.preventDefault();
+    handler(e);
+  });
+  node.addEventListener("click", function (e) {
+    if (firedByPointer) { firedByPointer = false; return; }
+    handler(e);
+  });
+}
+
+// NO DOUBLE-TAP ZOOM, anywhere on the page - two rules, both for the
+// whole page:
+//   1. touch-action: manipulation on every element (trainer.css [#3]).
+//      (The meta viewport tag's user-scalable=no is ignored by iPadOS.)
+//   2. This guard, because iPadOS doesn't always honour rule 1: a
+//      touch that STARTS within DOUBLE_TAP_MS of the last tap ending
+//      - the second tap of a double tap - has the iPad's own handling
+//      of it cancelled (touchstart), so it can never zoom.
+// The second tap is caught as it starts, not as it ends, because the
+// start always reaches this listener: the first tap may change what's
+// under the finger (a tapped move in an engine line redraws the line),
+// and a touch whose element has gone from the page by the time it
+// ends is never heard of again - but nothing has changed yet when the
+// next touch starts.
+// What a cancelled second tap still does: everything handled on
+// pointer events (the board, the engine lines, the explorer's moves,
+// the comment box, every bindTap button) works as normal. Only the
+// browser's own "click" after it is lost, and it can't start a scroll
+// - so on the move list, say, two taps on moves in quick succession
+// count as one.
+// Left alone: buttons, dropdowns, switches and text fields (button,
+// select, input, label). Buttons don't zoom anyway (rule 1 works on
+// them), and a quick second tap on < or > has to click. A DISABLED
+// button lets taps through to what's behind it (trainer.css [#3]) -
+// so a quick double tap on a greyed-out button is caught here like
+// anywhere else. Every tap's end is noted, buttons' included: tapping
+// << goes to the start and disables it straight away, so a quick
+// second tap there lands on the button row behind it.
+var DOUBLE_TAP_MS = 350;
+
+function preventDoubleTapZoom() {
+  var lastTapEnd = 0;
+  // (capture: noted before anything the tap does)
+  document.addEventListener("pointerup", function (e) {
+    if (e.pointerType === "touch") lastTapEnd = Date.now();
+  }, true);
+  document.addEventListener("touchstart", function (e) {
+    if (Date.now() - lastTapEnd > DOUBLE_TAP_MS) return;
+    if (e.target.closest && e.target.closest("button, select, input, label")) return;
+    e.preventDefault();
+  }, { passive: false });
+}
+
+/*==================================================================
+ * [#12] GAME STATE — where you are in the open chapter, and whether
+ * you're practicing or browsing. (Which chapter is open is
+ * [#1].)
+ *==================================================================*/
+var currentPly = 0; // book moves played from the chapter's start
+// The position on the board: game.pos (a rules.js Position) and
+// game.moves (the moves that led to it, as UCI). Set by
+// initGameState() at boot, then by rebuildPosition ([#13]).
+var game = { pos: null, moves: [] };
+var mode = "practice"; // "browse" | "practice"
+
+// BLINDFOLD PUZZLES - build_puz_jsonl.py merges a Lichess instructions
+// chapter and its "Answer" chapter into one puzzle, marked
+// "blindfold": true, whose preamble is the instructions. Such
+// a puzzle starts with the pieces hidden - an empty board
+// (rebuildPosition), the instructions in the comment box, no moves,
+// the engine off, and its buttons and keys (l, x) dimmed until the
+// pieces show (updateControls, [#13]; engineKey, [#24]). (The explorer
+// is off in every puzzle anyway.) Once the pieces show, the comment box is
+// empty (the instructions would only be in the way).
+// Shown by > (navNext), >> (navEnd), a tap on the comment box or
+// Space (passNoteGate); hidden again by << (navStart), or by < at
+// the start (navPrev). Only ever on at ply 0.
+var piecesHidden = false;
+
+// True if the open chapter is a blindfold puzzle.
+function isBlindChapter() {
+  var ch = chapters[currentChapter];
+  return !!(ch && ch.blindfold);
+}
+
+// Creates the starting chess position. Waits until here (rather
+// than running at load) so it can run after the rules engine
+// (rules.js) is defined.
+function initGameState() { game.pos = new RULES.Position(); }
+
+/*==================================================================
+ * [#13] NAVIGATION — moves the board to a given ply of the book
+ * line: rebuilding the position, the opponent's slide, the
+ * back/forward controls and their on/off states.
+ *==================================================================*/
+function rebuildPosition(ply) {
+  // ply 0 is the chapter's own starting position - its fen when it
+  // has one, otherwise the standard start.
+  var ch = chapters[currentChapter];
+  var pos = new RULES.Position((ch && ch.fen) || undefined);
+  var moves = [];
+  for (var i = 0; i < ply; i++) {
+    var r = pos.applyUci(chapterMoves[i].uci);
+    if (!r) break;
+    moves.push(chapterMoves[i].uci);
+  }
+  // On the analysis line ([#14]), your own moves follow on from
+  // the book position it branched from.
+  if (onAnalysisLine() && ply === analysis.basePly) {
+    for (var j = 0; j < anaIdx; j++) {
+      if (!pos.applyUci(analysis.moves[j].uci)) break;
+      moves.push(analysis.moves[j].uci);
+    }
+  }
+  // A blindfold puzzle's hidden pieces ([#12]): the same position with
+  // every piece taken off, so the board draws, counts and lets you
+  // touch nothing - and the side to move stays the real one.
+  if (piecesHidden) pos.board = new Array(128).fill(null);
+  game.pos = pos;
+  game.moves = moves;
+}
+
+// uci "e2e4" -> {from, to} in the same 0x88 square numbering the rest
+// of the app uses (see gridTo0x88).
+function parseUciSquares(uci) {
+  if (!uci || uci.length < 4) return null;
+  var ff = uci.charCodeAt(0) - 97, fr = uci.charCodeAt(1) - 49;
+  var tf = uci.charCodeAt(2) - 97, tr = uci.charCodeAt(3) - 49;
+  if (ff < 0 || ff > 7 || fr < 0 || fr > 7 || tf < 0 || tf > 7 || tr < 0 || tr > 7) return null;
+  return { from: fr * 16 + ff, to: tr * 16 + tf };
+}
+
+// Stops everything waiting or moving on the board: the pause
+// ([#16] - the opponent's reply, or a parked wrong move's trip
+// home), the parked wrong move itself (gone at once, no slide back)
+// and any slide - the opponent's, or a step on either line. Every
+// jump to a new position starts with it, so a fresh navigation
+// always wins over whatever was pending or in flight.
+function settleBoard() {
+  cancelPause();
+  BOARD.clearWrongMove(false);
+  BOARD.stopAnimation();
+  anaSliding = false; // ([#14])
+}
+
+function goToPly(ply, skipAnim) {
+  // Nothing moves while an error has the page stopped (errors.js [#1]).
+  if (pageStopped()) return;
+  ply = Math.max(0, Math.min(ply, chapterMoves.length));
+  // Going to any move past the start shows a blindfold puzzle's
+  // pieces ([#12]) - e.g. >> or a move tapped in the move list.
+  if (ply > 0) piecesHidden = false;
+  // Slides only make sense from the book position itself, not from
+  // your own moves on the analysis line ([#14]).
+  var fromBook = !onAnalysisLine();
+  anaIdx = 0; // any book-line navigation leaves the analysis line
+  settleBoard();
+
+  // One step forward slides the move in; one step back slides it
+  // home again (backMove). Bigger jumps are instant. The same in
+  // Practice and browse, for both sides' moves - only a move you
+  // play on the board yourself doesn't slide (the piece is already
+  // where you dropped it), and tryPlayMove ([#16]) asks for that with
+  // skipAnim.
+  // (No piece on the move's square: a blindfold puzzle's hidden
+  // pieces, [#12] - nothing to slide.)
+  var animMove = null, backMove = null;
+  if (!skipAnim && fromBook) {
+    if (ply === currentPly + 1 && currentPly < chapterMoves.length) {
+      var parsed = parseUciSquares(chapterMoves[currentPly].uci);
+      if (parsed && game.pos.board[parsed.from]) animMove = parsed;
+    } else if (ply === currentPly - 1) {
+      backMove = parseUciSquares(chapterMoves[ply].uci);
+    }
+  }
+
+  if (animMove) {
+    // Show the comment - and highlight the move in the sidebar list -
+    // for the move that's about to land as soon as the animation
+    // starts, rather than waiting for the piece to arrive. The player
+    // can read the comment while the piece is still sliding toward
+    // its target square. The comment box becomes the tap-to-
+    // advance target only once the note gate opens after the
+    // animation finishes (see maybeAutoPlayBook), so a tap mid-
+    // animation doesn't prematurely skip ahead.
+    renderCommentText(moveComment(chapterMoves[ply - 1]));
+    renderAltText(chapterMoves[ply - 1].altSan);
+    commentPly = ply; // ([#18])
+    updateMoveListHighlight(ply);
+    hideNoteGate();
+    // Browse mode: the engine moves on to the new position now, so its
+    // lines and arrows switch the moment the step is taken, like
+    // Lichess - not once the piece lands (engine.js, "The position
+    // analysed"). Going back already works this way.
+    if (mode === "browse") {
+      var nextPos = game.pos.clone();
+      if (nextPos.applyUci(chapterMoves[ply - 1].uci)) {
+        ENGINE.positionChanged(nextPos, chapterMoves[ply - 1].uci);
+        EXPLORER.positionChanged(nextPos);
+      }
+    }
+    BOARD.animateMove(animMove, ply - 1, function () { finishGoToPly(ply); });
+  } else if (backMove) {
+    // The board goes straight to the earlier position, and the
+    // move's piece slides home over it (board.js [#9]).
+    finishGoToPly(ply);
+    BOARD.animateMove(backMove, ply, function () { BOARD.render(); }, true);
+  } else {
+    finishGoToPly(ply);
+  }
+}
+
+function finishGoToPly(ply) {
+  currentPly = ply;
+  BOARD.clearSelection();
+  rebuildPosition(ply);
+  BOARD.render();
+  updateMoveListHighlight();
+  updateComment();
+  updateControls();
+  if (currentPly >= chapterMoves.length) {
+    hideNoteGate();
+    showEndOfLine();
+  } else {
+    hideEndOfLine();
+    maybeAutoPlayBook();
+  }
+  // Pieces hidden ([#12]): the comment box (or Space) shows them, and
+  // the engine and explorer stay off, so nothing gives the position
+  // away.
+  if (piecesHidden) showNoteGate();
+  syncNotesHeight();
+  if (piecesHidden) {
+    ENGINE.shutDown();
+    EXPLORER.shutDown();
+  } else {
+    ENGINE.positionChanged();
+    EXPLORER.positionChanged();
+  }
+}
+
+// The board's back/forward controls (buttons and arrow keys).
+// On the analysis line they step through your own moves; stepping
+// back past the first one returns to the book move it branched from.
+// Forward from a book position always follows the book.
+// Single steps slide on both lines, forward and back, in Practice and
+// browse alike (goToPly, goToAnalysis).
+function navPrev() {
+  // Mid-slide forward: back cancels that move (it hasn't landed yet),
+  // not the one before it - on either line. In Practice, only while
+  // it's your own move sliding in (from >): cancelling the opponent's
+  // reply would just bring it straight back (maybeAutoPlayBook), so
+  // there back takes back your move, as it always has.
+  if (BOARD.isAnimating() && (mode === "browse" || game.pos.turn === side)) cancelStep();
+  else if (onAnalysisLine()) goToAnalysis(anaIdx - 1);
+  // At a blindfold puzzle's start: hides the pieces again ([#12]).
+  else if (currentPly === 0 && isBlindChapter() && !piecesHidden) hidePieces();
+  else goToPly(currentPly - 1);
+}
+// << : the start - for a blindfold puzzle, with the pieces hidden
+// again ([#12]).
+function navStart() {
+  if (isBlindChapter()) hidePieces();
+  else goToPly(0);
+}
+function hidePieces() {
+  piecesHidden = true;
+  goToPly(0, true);
+}
+// snapAnim: a step forward is still sliding in. It lands first - in
+// practice that's the whole press (the opponent's reply, or your own
+// move from an earlier >); in browse the press then slides the next
+// move too, so quick taps never lose a step. Works the same on the
+// analysis line.
+function navNext(snapAnim) {
+  if (snapAnim) {
+    landStep();
+    if (mode !== "browse") return;
+  }
+  if (onAnalysisLine()) { goToAnalysis(anaIdx + 1); return; }
+  // A blindfold puzzle's hidden pieces: > shows them ([#12]).
+  if (piecesHidden) { piecesHidden = false; goToPly(0, true); return; }
+  goToPly(currentPly + 1);
+}
+// A step forward still sliding in (BOARD.isAnimating()), on whichever
+// line it's on: landStep puts it on the board at once, cancelStep
+// leaves the board where it was before it. (A step onto the analysis
+// line always goes from anaIdx to anaIdx + 1 - from 0 at the book
+// position it branches from.)
+function landStep() {
+  if (anaSliding) goToAnalysis(anaIdx + 1, true);
+  else goToPly(currentPly + 1, true);
+}
+function cancelStep() {
+  if (anaSliding) goToAnalysis(anaIdx, true);
+  else goToPly(currentPly, true);
+}
+function navEnd() {
+  if (onAnalysisLine()) goToAnalysis(analysis.moves.length);
+  else goToPly(chapterMoves.length);
+}
+
+function updateControls() {
+  // On the analysis line, "the end" is the end of your own line.
+  var onAna = onAnalysisLine();
+  // (A blindfold puzzle's start is the pieces hidden - [#12].)
+  var atStart = currentPly === 0 && !onAna && (piecesHidden || !isBlindChapter());
+  var atEnd = onAna ? anaIdx >= analysis.moves.length
+                    : currentPly >= chapterMoves.length && !piecesHidden;
+  el("btnStart").disabled = atStart;
+  el("btnPrev").disabled = atStart;
+  el("btnNext").disabled = atEnd;
+  el("btnEnd").disabled = atEnd;
+  // >> as Next at the end of the book line ([#6])
+  updateEndButton();
+  // A blindfold puzzle's hidden pieces ([#12]): no engine - the board
+  // holds no position for it to look at, only an empty one (which it'd
+  // call a stalemate). The Threat button dims itself there already
+  // (engine.js). The explorer is for openings only: dimmed in Puzzles
+  // mode, so no puzzle position is ever asked of Lichess or kept
+  // (explorer.js [#7]). (Missing engine.js / explorer.js: their
+  // buttons stay off for good - [#22].)
+  el("btnEngine").disabled = piecesHidden || !!ENGINE.missing;
+  el("btnExplorer").disabled = listSlot() === "puzzles" || !!EXPLORER.missing;
+}
+
+/*==================================================================
+ * [#14] ANALYSIS LINE — In browse mode you can play moves for
+ * both sides. A move that matches the book just steps along the book
+ * line. Anything else starts (or extends) ONE analysis line that
+ * branches off the book at the position it was played from. Playing
+ * a different move from any earlier point replaces the rest of the
+ * line; playing off-book from a different book position replaces the
+ * whole line. The line shows in brackets in the move list ([#19]).
+ *
+ * currentPly never leaves the book line: on the analysis line it
+ * stays at analysis.basePly, and anaIdx says how many of your own
+ * moves are on the board after it (0 = plain book position). That's
+ * why going back to the book (goToPly) only has to zero anaIdx.
+ *
+ * Turning Practice on deletes the line (see setMode in [#15]), and so
+ * does loading or restarting a chapter (loadChapter, clearBoard, [#4]).
+ *
+ * Tapping a move in one of the engine lines ([#22]) plays that
+ * line up to the move, by the same rules (playEngineLine below) -
+ * and so does tapping a move in the opening explorer, a line of
+ * just that one move.
+ *==================================================================*/
+// { basePly, startTurn, startFull, moves: [{ uci, san }] }
+var analysis = null;
+var anaIdx = 0;      // how many of analysis.moves are on the board
+// True while a step forward along the analysis line is sliding in
+// (goToAnalysis): anaIdx is still the step before it until the piece
+// lands. Cleared when it lands, and by settleBoard ([#13]).
+var anaSliding = false;
+
+function onAnalysisLine() { return anaIdx > 0 && !!analysis; }
+
+function clearAnalysis() {
+  analysis = null;
+  anaIdx = 0;
+}
+
+// A move played on the board in browse mode (from tryPlayMove).
+function playFreeMove(m) {
+  var uci = game.pos.uciOf(m);
+  if (!onAnalysisLine()) {
+    var book = chapterMoves[currentPly];
+    // (no slide - you just put the piece there yourself)
+    if (book && book.uci === uci) { goToPly(currentPly + 1, true); return; }
+    // Same first move as the line already branching from here: step
+    // into it rather than wiping out the rest of it.
+    // (no slide on the analysis line either - here and below)
+    if (analysis && analysis.basePly === currentPly && analysis.moves[0].uci === uci) {
+      goToAnalysis(1, true);
+      return;
+    }
+    analysis = { basePly: currentPly, startTurn: game.pos.turn, startFull: game.pos.full, moves: [] };
+  } else {
+    var next = analysis.moves[anaIdx];
+    if (next && next.uci === uci) { goToAnalysis(anaIdx + 1, true); return; }
+    analysis.moves.length = anaIdx; // drop the old line from here on
+  }
+  analysis.moves.push({ uci: uci, san: game.pos.sanOf(m) });
+  renderMoveList();
+  goToAnalysis(analysis.moves.length, true);
+}
+
+// A move tapped in one of the engine lines (engine.js). ucis is
+// the line from the board position up to and including that move.
+// Played by the same rules as moving the pieces on the board one move
+// at a time (playFreeMove): moves that match the book just step along
+// it, and the first one that doesn't starts - or carries on - the
+// analysis line. One move - an explorer move, or the first move of
+// an engine line - slides in like a step with > (goToPly,
+// goToAnalysis), on either line. More than one jumps straight to the
+// last, like tapping a move further along in the move list. Stops
+// early at a move that isn't legal (can't happen with engine output,
+// but costs nothing to check).
+function playEngineLine(ucis) {
+  if (mode !== "browse" || !game.pos || !ucis || !ucis.length) return;
+  // A step forward still sliding in: the lines are already for the
+  // position after it, so land it first.
+  if (BOARD.isAnimating()) landStep();
+  var pos = game.pos.clone();
+  var ply = currentPly, idx = anaIdx, onAna = onAnalysisLine();
+  var played = 0, listChanged = false;
+  for (var i = 0; i < ucis.length; i++) {
+    var legal = pos.legalMoves();
+    var m = pos.findUci(ucis[i], legal);
+    if (!m) break;
+    var uci = pos.uciOf(m);
+    if (!onAna) {
+      var book = chapterMoves[ply];
+      if (book && book.uci === uci) {
+        ply++;
+      } else {
+        onAna = true;
+        idx = 1;
+        // Same first move as the line already branching from here:
+        // step into it rather than wiping out the rest of it.
+        if (!(analysis && analysis.basePly === ply && analysis.moves[0].uci === uci)) {
+          analysis = { basePly: ply, startTurn: pos.turn, startFull: pos.full,
+                       moves: [{ uci: uci, san: pos.sanOf(m, legal) }] };
+          listChanged = true;
+        }
+      }
+    } else {
+      var next = analysis.moves[idx];
+      if (!(next && next.uci === uci)) {
+        analysis.moves.length = idx; // drop the old line from here on
+        analysis.moves.push({ uci: uci, san: pos.sanOf(m, legal) });
+        listChanged = true;
+      }
+      idx++;
+    }
+    pos.apply(m);
+    played++;
+  }
+  if (!played) return;
+  if (listChanged) renderMoveList();
+  // (one move is one step from the board's position, so it slides)
+  var skipAnim = played > 1;
+  if (onAna) goToAnalysis(idx, skipAnim);
+  else goToPly(ply, skipAnim);
+}
+
+// Shows the analysis line with its first idx moves played (0 = the
+// book position it branches from). The analysis-line counterpart of
+// goToPly in [#13], and it slides the same way: one step forward
+// slides the move in (slideAnalysisMove), one step back slides it
+// home over the earlier position (board.js [#9]); bigger jumps, and
+// skipAnim, are instant. The steps count from the book position the
+// line branches from too, so the first move slides on and off it.
+function goToAnalysis(idx, skipAnim) {
+  if (!analysis || pageStopped()) return;
+  idx = Math.max(0, Math.min(idx, analysis.moves.length));
+  // How many of the line's moves are on the board now: anaIdx on the
+  // line, 0 at the book position it branches from, -1 anywhere else
+  // (no slide from there).
+  var from = onAnalysisLine() ? anaIdx : (currentPly === analysis.basePly ? 0 : -1);
+  var step = (skipAnim || from < 0) ? 0 : idx - from;
+  if (step === 1) { slideAnalysisMove(idx); return; }
+  if (idx === 0) {
+    goToPly(analysis.basePly, true);
+  } else {
+    settleBoard();
+    finishGoToAnalysis(idx);
+  }
+  if (step === -1) {
+    // The board is already at the earlier position; the move's piece
+    // slides home over it (moveIndex null: not a book move).
+    var back = parseUciSquares(analysis.moves[idx].uci);
+    if (back) BOARD.animateMove(back, null, function () { BOARD.render(); }, true);
+  }
+}
+
+// One step forward along the analysis line, to its move idx, slid in
+// like a book step (goToPly): the board stays on the position before
+// the move until the piece lands, then finishGoToAnalysis puts it
+// after. The move list, comment, engine and explorer move on as the
+// slide starts. The slide carries the move's SAN and uci, so a check
+// glows, and a mate or stalemate gets its badge, from its first frame
+// (board.js [#5], [#6]).
+function slideAnalysisMove(idx) {
+  var mv = analysis.moves[idx - 1];
+  var sq = parseUciSquares(mv.uci);
+  settleBoard();
+  if (!sq || piecesHidden) { finishGoToAnalysis(idx); return; }
+  anaSliding = true;
+  updateMoveListHighlight(currentPly, idx);
+  showAnalysisComment();
+  hideNoteGate();
+  hideEndOfLine();
+  var nextPos = game.pos.clone();
+  if (nextPos.applyUci(mv.uci)) {
+    ENGINE.positionChanged(nextPos, mv.uci);
+    EXPLORER.positionChanged(nextPos);
+  }
+  sq.san = mv.san;
+  sq.uci = mv.uci;
+  BOARD.animateMove(sq, null, function () { finishGoToAnalysis(idx); });
+}
+
+// The board at the analysis line's move idx (1 or more), with
+// everything around it brought up to date.
+function finishGoToAnalysis(idx) {
+  anaSliding = false;
+  anaIdx = idx;
+  currentPly = analysis.basePly;
+  BOARD.clearSelection();
+  rebuildPosition(currentPly);
+  BOARD.render();
+  updateMoveListHighlight();
+  updateComment();
+  updateControls();
+  hideNoteGate();
+  hideEndOfLine();
+  syncNotesHeight();
+  ENGINE.positionChanged();
+  EXPLORER.positionChanged();
+}
+
+/*==================================================================
+ * [#15] PRACTICE MODE — the Play/Stop button and switching
+ * between browse and practice mode.
+ *==================================================================*/
+// Play/Stop icon for #btnPractice (artwork in icons.js), swapped in
+// wholesale (innerHTML) rather than toggling two pre-rendered <svg>
+// children, since the button never needs both at once. Play = tap to
+// start practice mode; Stop (filled square) = practice is running,
+// tap to stop back into browse mode.
+function updatePracticeIcon() {
+  var btn = el("btnPractice");
+  btn.innerHTML = icon(mode === "practice" ? "stop" : "play");
+  btn.title = mode === "practice" ? "Stop practice mode" : "Start practice mode";
+}
+
+function setMode(next) {
+  mode = next;
+  // turning Practice on wipes the slate clean - the engine (Engine and
+  // Threat) and the explorer shut down and the analysis line is
+  // deleted. goToPly below then puts
+  // the board back on the book move the analysis line branched from
+  // (currentPly never leaves the book line - see [#14]). (The
+  // Lichess data carries on being collected - explorer.js [#10].)
+  if (mode === "practice") {
+    ENGINE.shutDown();
+    EXPLORER.shutDown();
+    clearAnalysis();
+    if (chapters.length) renderMoveList();
+  }
+  el("btnPractice").classList.toggle("active", mode === "practice");
+  updatePracticeIcon();
+  el("moveListBox").classList.toggle("hidden", mode === "practice");
+  if (mode === "practice") BOARD.setOrientation(side);
+  if (chapters.length) goToPly(currentPly, true);
+  else BOARD.render(); // nothing loaded (see clearBoard)
+  ENGINE.updateUI();
+  EXPLORER.updateUI();
+}
+
+/*==================================================================
+ * [#16] MOVE CHECK & AUTO-PLAY — checks your move against the book
+ * (right, an ALT: move, or wrong - a wrong one stays parked on
+ * its square for PAUSE_MS, then goes back), then auto-plays the
+ * opponent's reply after PAUSE_MS - or first waits for you to tap
+ * past your move's comment.
+ *==================================================================*/
+// While it's genuinely the player's turn, input operates on the real
+// game.pos. While the opponent's reply is still pending
+// (book move not yet applied - whether still waiting out
+// PAUSE_MS or mid-slide-animation), the board still
+// accepts input against the position as it WILL be once that reply
+// lands - a premove. Picking up a piece doesn't force-resolve the
+// opponent's move (so its slide animation, if any, keeps playing);
+// only actually dropping the premove on its target square does, via
+// playPremove() below. The animOverlay/userDragOverlay split in
+// renderMiniBoard is what lets both animations coexist on screen
+// without one clobbering the other while this is going on.
+function pendingOpponentUci() {
+  if (mode !== "practice" || !chapterMoves || currentPly >= chapterMoves.length) return null;
+  if (game.pos.turn === side) return null;
+  var mv = chapterMoves[currentPly];
+  return mv ? mv.uci : null;
+}
+
+// Every move the player makes on the board - tapped or dragged
+// (board.js [#10], [#11]) - comes here: the board's one handoff to the
+// practice rules.
+function tryPlayMove(m) {
+  if (pageStopped()) return; // see errors.js [#1]
+  // (No moves while a blindfold puzzle's pieces are hidden - [#12].
+  // The board has none to move anyway.)
+  if (piecesHidden) { BOARD.render(); return; }
+
+  // Browse mode never grades a move - it follows the book if
+  // it's the book move, otherwise it goes on the analysis line
+  // ([#14]).
+  if (mode === "browse") { playFreeMove(m); return; }
+
+  // If the opponent's reply hasn't actually landed on the board yet,
+  // this is a premove: snap that reply onto the board right now (no
+  // further pause, no animation - see playPremove), then re-check
+  // the queued move against the real resulting position.
+  if (game.pos.turn !== side) { playPremove(m); return; }
+  // Your own book move still sliding in from the > button ([#13]): the
+  // board is still on the position before it, so a move dropped now
+  // isn't checked - it just snaps back, like an illegal drop. (The
+  // board takes no input then anyway - board.js inputPosition - so
+  // this is only a safety net.)
+  if (BOARD.isAnimating()) { BOARD.render(); return; }
+  var uci = game.pos.uciOf(m);
+  var expected = chapterMoves[currentPly];
+  if (expected && expected.uci === uci) {
+    // skipAnim: your piece is already where you dropped it, so it
+    // doesn't slide (goToPly, [#13])
+    goToPly(currentPly + 1, true);
+  } else {
+    // Wrong (or an ALT: move): park the piece on the square it was
+    // dropped on, then slide it home after PAUSE_MS.
+    var isAlt = !!(expected && expected.altUci && expected.altUci.indexOf(uci) !== -1);
+    BOARD.showWrongMove(m, isAlt);
+    BOARD.render();
+    pause(function () { BOARD.clearWrongMove(true); });
+  }
+}
+
+// Resolves a queued premove: fast-forwards the pending opponent book
+// move onto the real position - goToPly cuts short the wait or its
+// slide animation, whichever is under way - then replays the premove
+// against the real legal moves for that new position (re-derived
+// from from/to rather than assumed still legal, since the actual
+// opponent move is what the board now reflects, not just the
+// hypothetical one used to arm the premove). Promotion, if any, was
+// already chosen by the player up front (m.promotion) - matched here
+// rather than re-asked.
+function playPremove(m) {
+  if (!pendingOpponentUci()) { BOARD.render(); return; }
+  goToPly(currentPly + 1, true);
+  if (game.pos.turn !== side) { BOARD.render(); return; }
+  var legalNow = game.pos.legalMoves();
+  var found = legalNow.filter(function (o) {
+    return o.from === m.from && o.to === m.to && (o.promotion || null) === (m.promotion || null);
+  });
+  if (!found.length) { BOARD.render(); return; }
+  tryPlayMove(found[0]);
+}
+
+// ---- The pause --------------------------------------------------
+// Two things wait PAUSE_MS before they happen:
+//   - the opponent's reply, after your move (when your move has no
+//     comment - see maybeAutoPlayBook below; the piece then slides
+//     across for MOVE_ANIM_MS, board.js [#9])
+//   - a wrong or ALT: move's piece and square tint, which stay
+//     parked on the dropped square before sliding/fading back home
+//     (tryPlayMove above; board.js [#9])
+// Both share the one timer below. They can never both be waiting:
+// the reply only waits on the opponent's turn, a wrong move only on
+// yours, and the turn only changes through goToPly ([#13]), which
+// cancels whatever is waiting (settleBoard) - as do goToAnalysis,
+// clearBoard and stopGameplay.
+var PAUSE_MS = 750;
+
+var pauseTimer = null;
+function pause(then) {
+  clearTimeout(pauseTimer);
+  pauseTimer = setTimeout(then, PAUSE_MS);
+}
+function cancelPause() { clearTimeout(pauseTimer); }
+
+// In practice mode, the side you're NOT playing has no board input
+// of its own - its moves come straight from the chapter. After your
+// move:
+//   - your move has a comment: the trainer waits for you to tap the
+//     comment box (or press Space or the next-move button), then
+//     plays the opponent's move
+//   - no comment - or the comments button off ([#18]), where no
+//     comment shows: it pauses (PAUSE_MS), then plays the opponent's
+//     move.
+// Only ever called from finishGoToPly, right after goToPly has
+// cancelled any pause - so there's nothing to cancel here.
+function maybeAutoPlayBook() {
+  hideNoteGate();
+  if (pageStopped() || mode !== "practice" || piecesHidden) return;
+  if (currentPly >= chapterMoves.length) return;
+  if (game.pos.turn === side) return;
+  var justPlayed = currentPly > 0 ? chapterMoves[currentPly - 1] : null;
+  if (moveComment(justPlayed)) {
+    showNoteGate();
+    return;
+  }
+  pause(function () { goToPly(currentPly + 1); });
+}
+
+// True while a just-played move's comment is up and waiting for the
+// player to tap the comment box to advance (see maybeAutoPlayBook
+// and the commentBox tap handler in [#23]). The ALT box isn't a tap
+// target, and there's no separate button for this - the comment box
+// itself is the whole tap target, sized to be hard to miss.
+var noteGateOpen = false;
+function showNoteGate() { noteGateOpen = true; el("commentBox").classList.add("tappable"); }
+function hideNoteGate() { noteGateOpen = false; el("commentBox").classList.remove("tappable"); }
+// Past the comment that's waiting (a tap on the comment box, or
+// Space): plays the next move - or shows a blindfold puzzle's hidden
+// pieces ([#12]).
+function passNoteGate() {
+  if (piecesHidden) navNext();
+  else goToPly(currentPly + 1);
+}
+
+/*==================================================================
+ * [#17] ANNOTATION COLORS — the !!/!/!?/?!/?/?? colors, in one place
+ * for the move list ([#19]), the comment text ([#18]) and the board's
+ * badges (board.js [#6]). In the comment text, a move with a glyph
+ * ("Nf3!", "exd5?!") is found with a regex (a SAN pattern, and a
+ * lookahead that tells a glyph from ordinary punctuation) and
+ * colored. The comment is built fresh each time it's shown, as one
+ * fragment.
+ *==================================================================*/
+// Single source of truth for the six annotation glyphs: which CSS
+// custom property (defined once, at the top of the stylesheet) each
+// one maps to. Everything that needs an actual color value - the
+// move-list ".mv" classes (via CSS), inline comment text, and the
+// on-board badge - reads through annotationColor() below rather than
+// keeping its own copy of the hex values.
+var ANNOTATION_CLASS = {
+  "!!": "brilliant", "!": "good", "!?": "interesting",
+  "?!": "dubious", "?": "mistake", "??": "blunder"
+};
+function annotationColor(glyph) {
+  var cls = ANNOTATION_CLASS[glyph];
+  return cls ? cssColor("--" + cls) : null;
+}
+
+// SAN move core, reused for the move itself and to detect a
+// move-list continuation.
+var SAN =
+  "(?:" +
+    "[KQRBN][a-h]?[1-8]?x?[a-h][1-8]" +    // piece move
+    "|(?:[a-h]x)?[a-h][1-8](?:=[QRBN])?" + // pawn move
+    "|[O0]-[O0](?:-[O0])?" +               // castling
+  ")";
+
+// group 1 = boundary char kept as plain text
+// group 2 = move + check + glyph (colored)
+// group 3 = the glyph (color lookup)
+var ANNOTATED_MOVE_REGEX = new RegExp(
+  "(^|[^A-Za-z0-9])" +
+  "(" +
+    SAN +
+    "[+#]?" +
+    "((?:!!|\\?\\?|!\\?|\\?!|[!?])" +
+    "(?=[ \\t]*[^\\w\\s]" +
+    "|[ \\t]+[a-z]" +
+    "|[ \\t]+(?:[\\d.]+[ \\t]*)?" + SAN +
+    "))" +
+  ")",
+  "g"
+);
+
+function buildAnnotatedFragment(text) {
+  var frag = document.createDocumentFragment();
+  var last = 0, m;
+  ANNOTATED_MOVE_REGEX.lastIndex = 0;
+  while ((m = ANNOTATED_MOVE_REGEX.exec(text))) {
+    var color = annotationColor(m[3]);
+    var start = m.index + m[1].length;
+    if (!color) continue;
+    if (start > last) frag.appendChild(document.createTextNode(text.slice(last, start)));
+    var span = document.createElement("span");
+    span.style.color = color;
+    span.style.fontWeight = "700";
+    span.textContent = m[2];
+    frag.appendChild(span);
+    last = start + m[2].length;
+  }
+  if (last === 0) { frag.appendChild(document.createTextNode(text)); return frag; }
+  if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+  return frag;
+}
+
+/*==================================================================
+ * [#18] COMMENT BOX — the comment and ALT box for the move on the
+ * board, and the "more below" scroll cue. With the comments
+ * button off (toggleComments, below) the move comments are left out
+ * (moveComment, below) - the box itself stays, for everything else
+ * it shows.
+ * (The circles and arrows that go with each comment are drawn
+ * by the board, board.js [#3]. While there's an error, it takes the
+ * comment's place - errors.js [#1].)
+ * A comment's line breaks come ready-made in the file: the build
+ * applies your comma rule on Lichess (jsonl_writer.py [#1]), so
+ * "\n" is a plain line break and "\n\n" a blank line, and the box
+ * just shows them (white-space: pre-wrap, trainer.css [#13]).
+ *==================================================================*/
+// "More text below" scroll cue for the comment box - see
+// #commentScrollCue's CSS for the visual. The chevron appears once
+// #commentText has more than COMMENT_CUE_TOLERANCE px of content
+// scrolled out of view below the fold, and fades as the user scrolls
+// to the end. The tolerance absorbs the few stray px of overflow a
+// fully-visible comment can still report (bottom padding/line-height
+// rounding) so a short comment never shows a phantom cue.
+var COMMENT_CUE_TOLERANCE = 4;
+function syncCommentScrollCue() {
+  var box = el("commentText");
+  var cue = el("commentScrollCue");
+  if (!box || !cue) return;
+  var overflow = box.scrollHeight - box.clientHeight;
+  if (overflow <= COMMENT_CUE_TOLERANCE) {
+    cue.style.display = "none";
+    return;
+  }
+  cue.style.display = "flex";
+  var remaining = box.scrollHeight - box.scrollTop - box.clientHeight;
+  cue.style.opacity = remaining > COMMENT_CUE_TOLERANCE ? "1" : "0";
+}
+
+function renderCommentText(text) {
+  var box = el("commentText");
+  box.innerHTML = "";
+  if (!text) {
+    box.className = "empty";
+  } else {
+    box.appendChild(buildAnnotatedFragment(text));
+    box.className = "";
+  }
+  box.scrollTop = 0;
+  syncCommentScrollCue();
+}
+
+// The comment box on the analysis line: empty, and the ALT box too -
+// the book's comments don't apply there (the move list already shows
+// you're off the book, in brackets - [#19]). Also as soon as a step
+// onto it starts sliding in (slideAnalysisMove, [#14]).
+function showAnalysisComment() {
+  renderCommentText("");
+  renderAltText(null);
+}
+
+function updateComment() {
+  // The book's comments don't apply on the analysis line.
+  if (onAnalysisLine()) { showAnalysisComment(); return; }
+  var moveObj = currentPly === 0 ? null : chapterMoves[currentPly - 1];
+  // (A blindfold puzzle shows its instructions only while its pieces
+  // are hidden - [#12].)
+  var ch = chapters[currentChapter];
+  // (The text before move 1 always shows, whatever the comments
+  // button says - it's a puzzle's instructions.)
+  var text = currentPly === 0
+    ? (isBlindChapter() && !piecesHidden ? "" : ch.preamble || "")
+    : moveComment(moveObj);
+  renderCommentText(text);
+  renderAltText(moveObj && moveObj.altSan);
+  commentPly = currentPly;
+}
+
+// The move whose comment the box shows (0: the start of the line) -
+// set by updateComment, and as a step forward starts sliding in,
+// before currentPly reaches it (goToPly, [#13]). The comments button
+// redraws that comment (applyShowComments, below).
+var commentPly = 0;
+
+// A book move's comment as the comment box shows it: "" with
+// the comments button off (below). Only the move comments - not the
+// text before move 1 (updateComment, above), the ALT box, or the
+// messages and errors that take the
+// comment's place. The move's arrows and circles stay on the board
+// either way: they follow Show move annotations (board.js [#3]).
+function moveComment(mv) {
+  return showComments && mv ? mv.comment || "" : "";
+}
+
+// The comments button switched (below): the comment already showing
+// is shown again, or blanked, at once. Not at the start of the line
+// (the text before move 1 always shows), and not on the analysis
+// line (no book comments there anyway).
+// Switched off while a comment is waiting to be tapped past (the note
+// gate, [#16]): there's nothing to wait for any more, so the
+// opponent's reply is played at once. Switched on, nothing waits that
+// wasn't already waiting: the wait only comes after your next move
+// that has a comment.
+function applyShowComments() {
+  if (!chapters.length || pageStopped()) return;
+  // commentPly: the move whose comment the box shows - also while a
+  // step forward is still sliding in
+  var ply = commentPly;
+  if (ply > 0 && !onAnalysisLine() && !anaSliding) {
+    renderCommentText(moveComment(chapterMoves[ply - 1]));
+  }
+  if (!showComments && noteGateOpen && !piecesHidden) passNoteGate();
+}
+
+// THE COMMENTS BUTTON - the first of the tools under the boxes (a
+// speech bubble), and the "c" key ([#24]): the move comments on /
+// off. Lit (.active, like the Explorer and Engine buttons) while
+// they're on, so it's always plain which it is - even with no comment
+// on the screen. Saved with the settings ([#21], "showComments").
+// Unlike Explorer, Threat and Engine it doesn't leave Practice: it's
+// a setting, not an analysis tool. (It took the place of the Show
+// comments switch in the Settings menu.)
+function toggleComments() {
+  showComments = !showComments;
+  saveSetting("showComments", showComments);
+  updateCommentsButton();
+  applyShowComments();
+}
+function updateCommentsButton() {
+  var btn = el("btnComments");
+  btn.classList.toggle("active", showComments);
+  btn.title = showComments ? "Hide comments" : "Show comments";
+}
+
+// Secondary ALT box (see .alt-row) - the move's other accepted moves
+// (its altSan, from the ALT: moves on Lichess). Empty when the
+// current move has none, and hidden when there's no room for it
+// ([#20]).
+function renderAltText(sans) {
+  var box = el("altText");
+  if (!sans || !sans.length) {
+    box.textContent = "";
+    box.className = "empty";
+    return;
+  }
+  box.className = "";
+  box.textContent = "ALT: " + sans.join(", ");
+}
+
+/*==================================================================
+ * [#19] MOVE LIST — the sidebar move-pair list (browse
+ * mode) and its current-move highlight.
+ *==================================================================*/
+function renderMoveList() {
+  var list = el("moveList");
+  list.innerHTML = "";
+  if (!chapterMoves.length) return;
+  // A chapter that starts from a fen may begin at any move number,
+  // and with Black to move. Read both from its starting position; if
+  // Black moves first, that move gets a pair of its own ("12... Nf6")
+  // and White/Black pairs follow.
+  var ch = chapters[currentChapter];
+  var start = new RULES.Position((ch && ch.fen) || undefined);
+  var moveNo = start.full;
+  var white = start.turn !== "b";
+  // The analysis line ([#14]) goes in brackets straight after the
+  // book move it replaces, as on Lichess. If that was White's move,
+  // Black's book reply then starts a pair of its own:
+  //   1. e4 e5 2. Nf3 (2. Bc4) 2... Nc6
+  var cut = analysis && analysis.moves.length ? analysis.basePly : -1;
+  var pair = null;
+  for (var i = 0; i < chapterMoves.length; i++) {
+    if (white || !pair) {
+      pair = appendMovePair(list, moveNo + (white ? "." : "..."));
+    } else {
+      // A line may break between White's and Black's move
+      // (trainer.css [#12])
+      pair.appendChild(document.createElement("wbr"));
+    }
+    pair.appendChild(moveSpan(i));
+    if (i === cut) { appendVariation(list); pair = null; }
+    if (!white) moveNo++;
+    white = !white;
+  }
+  // A line branching from the end of the book goes last.
+  if (cut >= chapterMoves.length) appendVariation(list);
+}
+
+// An empty move pair with its number, and the space after it.
+function appendMovePair(list, label) {
+  var pair = document.createElement("span");
+  pair.className = "pair";
+  var num = document.createElement("span");
+  num.className = "num";
+  num.textContent = label;
+  pair.appendChild(num);
+  list.appendChild(pair);
+  list.appendChild(document.createTextNode(" "));
+  return pair;
+}
+
+// The analysis line in brackets, and the space after it.
+function appendVariation(list) {
+  var v = document.createElement("span");
+  v.className = "variation";
+  var open = document.createElement("span");
+  open.className = "num";
+  open.textContent = "(";
+  v.appendChild(open);
+  var turn = analysis.startTurn, no = analysis.startFull, pair = null, span = null;
+  analysis.moves.forEach(function (mv, i) {
+    if (turn === "w" || !pair) {
+      if (pair) v.appendChild(document.createTextNode(" "));
+      pair = document.createElement("span");
+      pair.className = "pair";
+      var num = document.createElement("span");
+      num.className = "num";
+      num.textContent = no + (turn === "w" ? "." : "...");
+      pair.appendChild(num);
+      v.appendChild(pair);
+    } else {
+      // Black's move after White's in the same pair - a line
+      // may break between them (trainer.css [#12])
+      pair.appendChild(document.createElement("wbr"));
+    }
+    span = document.createElement("span");
+    span.className = "mv ana";
+    span.textContent = mv.san;
+    span.dataset.ana = i + 1;
+    span.addEventListener("click", function () {
+      goToAnalysis(parseInt(this.dataset.ana, 10));
+    });
+    pair.appendChild(span);
+    if (turn === "b") no++;
+    turn = turn === "w" ? "b" : "w";
+  });
+  span.style.marginRight = "0"; // ")" sits right after the last move
+  var close = document.createElement("span");
+  close.className = "num";
+  close.textContent = ")";
+  v.appendChild(close);
+  list.appendChild(v);
+  list.appendChild(document.createTextNode(" "));
+}
+
+function moveSpan(ply) {
+  var mv = chapterMoves[ply];
+  var span = document.createElement("span");
+  span.className = "mv";
+  var cls = ANNOTATION_CLASS[mv.annotation];
+  if (cls) span.className += " " + cls;
+  span.textContent = mv.san + (mv.annotation || "");
+  span.dataset.ply = ply + 1;
+  span.addEventListener("click", function () {
+    goToPly(parseInt(this.dataset.ply, 10));
+  });
+  return span;
+}
+
+// ply / ana: the book move / analysis-line move to highlight - by
+// default where the board is now. (Both are given while a step is
+// still sliding in, so the move it brings lights up at once.)
+function updateMoveListHighlight(ply, ana) {
+  if (ply === undefined) ply = currentPly;
+  // On the analysis line the highlight is on your own move there
+  // (data-ana), not on a book move (data-ply).
+  if (ana === undefined) ana = onAnalysisLine() ? anaIdx : 0;
+  var onAna = ana > 0;
+  var spans = document.querySelectorAll("#moveList .mv");
+  spans.forEach(function (s) {
+    var isCur = onAna
+      ? parseInt(s.dataset.ana, 10) === ana
+      : parseInt(s.dataset.ply, 10) === ply;
+    s.classList.toggle("current", isCur);
+  });
+  var cur = onAna
+    ? document.querySelector('#moveList .mv[data-ana="' + ana + '"]')
+    : (ply > 0 ? document.querySelector('#moveList .mv[data-ply="' + ply + '"]') : null);
+  scrollMoveListTo(cur);
+}
+
+// Scrolls the move list (it shows --move-list-rows lines, then
+// scrolls - trainer.css [#12]) so the current move's line is in view:
+// a whole line at a time, so no line is ever cut in half at the top
+// or bottom. No current move (the start of the line): back to the
+// top, where the first move is. Only the list scrolls - never the
+// page around it (which scrollIntoView could do).
+function scrollMoveListTo(cur) {
+  var list = el("moveList");
+  if (!cur) { list.scrollTop = 0; return; }
+  var lineH = parseFloat(getComputedStyle(list).lineHeight);
+  if (!(lineH > 0)) return;
+  // the line the move is on, counted from the list's own top
+  var mid = cur.getBoundingClientRect().top + cur.offsetHeight / 2 -
+            list.getBoundingClientRect().top + list.scrollTop;
+  var lineTop = Math.floor(mid / lineH) * lineH;
+  if (lineTop < list.scrollTop) list.scrollTop = lineTop;
+  else if (lineTop + lineH > list.scrollTop + list.clientHeight) {
+    list.scrollTop = lineTop + lineH - list.clientHeight;
+  }
+}
+
+/*==================================================================
+ * [#20] SIDEBAR HEIGHT — keeps the right-hand column within the
+ * board's height when side-by-side, so the two columns bottom-align.
+ *
+ * The column, top to bottom: the move list, the engine's lines, the
+ * explorer (each only while it's on, at its own height), the comment
+ * box and the ALT box. When they don't all fit, the column is cut off
+ * from the bottom up - the first box that doesn't fit is hidden, and
+ * so is everything under it:
+ *   - the move list, the engine's lines and the explorer each show
+ *     only if there's room for their whole height
+ *   - the comment box and the ALT box share whatever room is left:
+ *       room for both ....... the ALT box keeps its height, and the
+ *                             comment box gets the rest
+ *       not room for one line
+ *       of comment text plus
+ *       the ALT box ......... the ALT box is hidden, and the comment
+ *                             box gets its space too
+ *       not room for one line
+ *       of comment text ..... the comment box is hidden as well
+ * So as the room shrinks, the ALT box goes first, then the comment
+ * box, the explorer, the engine's lines and the move list.
+ * A box hidden for room gets the class "no-room" (trainer.css [#3]),
+ * kept apart from "hidden", which says whether it's on at all (set by
+ * engine.js, explorer.js, setMode [#15] and applyShowAltBox [#21]) -
+ * so a box shows only when it's on AND there's room for it. Hiding it
+ * only takes it out of sight: the engine keeps analysing, the
+ * explorer keeps asking.
+ * Every size is read from the page at the time (trainer.css [#2],
+ * [#13]): the boxes' own heights, the comment's font size, line
+ * spacing and padding, and --gap.
+ *==================================================================*/
+// True when the page is in its stacked (phone) layout - the grid has
+// one column instead of two. Asks the page itself rather than
+// repeating the 820px breakpoint, which lives only in the CSS
+// (trainer.css [#16]).
+function isStackedLayout() {
+  var layout = document.querySelector(".layout");
+  if (!layout) return false;
+  return getComputedStyle(layout).gridTemplateColumns.trim().split(/\s+/).length < 2;
+}
+
+// The boxes above the comment box, top to bottom: the move list, the
+// engine's lines and the explorer - also the order they're kept in
+// when there isn't room for all of them.
+var SIDE_BOXES = ["moveListBox", "engineLines", "explorerBox"];
+
+// The height of the smallest comment box that shows one whole line of
+// comment text: the box's padding and border, plus one line of
+// #commentText - all from the CSS. (Computed styles are there even
+// while the box is hidden.)
+function commentOneLineHeight() {
+  var box = getComputedStyle(el("commentBox"));
+  var text = getComputedStyle(el("commentText"));
+  // line-height comes back in px, or as the plain number from
+  // --text-line-height (a multiple of the font size)
+  var line = parseFloat(text.lineHeight);
+  if (!/px$/.test(text.lineHeight)) line *= parseFloat(text.fontSize);
+  return line +
+    parseFloat(box.paddingTop) + parseFloat(box.paddingBottom) +
+    parseFloat(box.borderTopWidth) + parseFloat(box.borderBottomWidth);
+}
+
+function syncNotesHeight() {
+  var frame = el("boardFrame");
+  var comment = el("commentBox");
+  var alt = el("altRow");
+  var sideCol = document.querySelector(".side-col");
+  if (!frame || !comment || !alt) return;
+  var boxes = SIDE_BOXES.map(el).filter(Boolean);
+  // Stacked (narrow screens): nothing is matched to the board - the
+  // comment box is as tall as its text, and nothing is hidden for
+  // room.
+  if (isStackedLayout()) {
+    boxes.concat([comment, alt]).forEach(function (box) { box.classList.remove("no-room"); });
+    comment.style.height = "";
+    comment.style.minHeight = "";
+    syncCommentScrollCue();
+    return;
+  }
+  var boardH = frame.getBoundingClientRect().height;
+  if (boardH <= 0) return;
+  var gap = sideCol ? (parseFloat(getComputedStyle(sideCol).gap) || 0) : 0;
+  // `room`: the room left below the boxes placed so far, each with the
+  // gap after it. `fits` turns false at the first box that doesn't
+  // fit - it and everything under it are hidden.
+  var room = boardH;
+  var fits = true;
+  // A box hidden for room last time is shown for a moment to be
+  // measured, and hidden again here if there's still no room. (A box
+  // that's off - "hidden" - is left alone.)
+  boxes.forEach(function (box) {
+    box.classList.remove("no-room");
+    if (box.classList.contains("hidden")) return;
+    var h = box.getBoundingClientRect().height;
+    if (fits && room >= h) room -= h + gap;
+    else fits = false;
+    box.classList.toggle("no-room", !fits);
+  });
+  // The comment box and the ALT box: the ALT box goes first - it
+  // shows only if there's room for it, the gap above it, and one line
+  // of comment.
+  var oneLine = commentOneLineHeight();
+  alt.classList.remove("no-room");
+  var altOn = !alt.classList.contains("hidden");
+  var altH = altOn ? alt.getBoundingClientRect().height : 0;
+  var showAlt = fits && altOn && room >= oneLine + gap + altH;
+  if (showAlt) room -= altH + gap;
+  var showComment = fits && room >= oneLine;
+  alt.classList.toggle("no-room", altOn && !showAlt);
+  comment.classList.toggle("no-room", !showComment);
+  if (showComment) {
+    comment.style.height = room + "px";
+    comment.style.minHeight = room + "px";
+  }
+  syncCommentScrollCue();
+}
+
+/*==================================================================
+ * [#21] SETTINGS — everything saved between visits, in one place:
+ * the store itself (localStorage, one entry), the Show...
+ * switches and other toggles with their defaults, restoring
+ * them all at boot, and the Settings panel (gear menu) that
+ * changes them. The board size (board.js [#13]) and the last-open
+ * chapter ([#4]) are saved through the same store, and so is the
+ * Lichess token - pasted on data.html, read by explorer.js
+ * ("THE TOKEN" there). (The engine's
+ * settings aren't saved here: they're set in the code, at the top of
+ * engine.js.)
+ *==================================================================*/
+// Small persisted-settings store, backed by localStorage under one
+// key so the checkbox states (showAnnotations, showMaterialCount,
+// ...), the board size and the rest survive a reload/revisit.
+var SETTINGS_KEY = "trainer.settings.v1";
+function loadSettings() {
+  try { return JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}; }
+  catch (e) { return {}; }
+}
+function saveSetting(key, value) {
+  var s = loadSettings();
+  s[key] = value;
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); }
+  catch (e) { /* storage full or off: the setting isn't saved */ }
+}
+
+// ---- The toggles: defaults (the saved values replace them at boot)
+// !!/?/#/eval badges (board.js [#6]) + circles/arrows
+// (board.js [#3]) on the board
+var showAnnotations = true;
+var showMaterialCount = true; // number in a1/a8 or h1/h8 squares
+// the move comments in the comment box (off = blank, and no waiting
+// for a tap after your move - moveComment, [#18]). Not a switch in
+// the Settings menu: the comments button under the boxes and the "c"
+// key change it (toggleComments, [#18]).
+var showComments = true;
+// the ALT box below the comment box: the move's ALT: moves
+var showAltBox = true;
+// colored start/end squares for the last move
+var showLastMoveHighlight = true;
+var showCheckHighlight = true; // red glow around a king in check
+// chapter name in the Chapter dropdown (off = just "#N"; the
+// Library always shows names - [#5])
+var showChapterName = true;
+// Auto practice mode: every chapter load (next / previous / pick,
+// a new chapter list) turns Practice on - see loadChapter ([#4]).
+var autoPractice = true;
+
+// Applies every saved value (if any) onto its variable. Called at
+// boot before the board's first paint, so that paint already
+// reflects them - and they're what the Settings panel's switches
+// start from (wireSettingsPanel, below).
+function loadSavedSettings() {
+  var saved = loadSettings();
+  if ("showAnnotations" in saved) showAnnotations = !!saved.showAnnotations;
+  if ("showMaterialCount" in saved) showMaterialCount = !!saved.showMaterialCount;
+  if ("showComments" in saved) showComments = !!saved.showComments;
+  if ("showAltBox" in saved) showAltBox = !!saved.showAltBox;
+  if ("showLastMoveHighlight" in saved) showLastMoveHighlight = !!saved.showLastMoveHighlight;
+  if ("showCheckHighlight" in saved) showCheckHighlight = !!saved.showCheckHighlight;
+  if ("showChapterName" in saved) showChapterName = !!saved.showChapterName;
+  if ("autoPractice" in saved) autoPractice = !!saved.autoPractice;
+  // The list mode: spaced repetition, random openings, puzzles or
+  // the Library ([#1]).
+  if (LIST_MODES.indexOf(saved.listMode) !== -1) listMode = saved.listMode;
+  // The Library's color, and each color's study ([#1], [#5]).
+  var pick = saved.libraryPick;
+  if (pick && (pick.side === "w" || pick.side === "b")) {
+    libraryPick.side = pick.side;
+    if (typeof pick.w === "string") libraryPick.w = pick.w;
+    if (typeof pick.b === "string") libraryPick.b = pick.b;
+  }
+}
+
+// ---- The Settings panel (gear menu) --------------------------------
+// A NEW SWITCH: its row in the Settings panel's markup, its variable
+// and default above, its line in loadSavedSettings, and its
+// wireSettingsToggle in wireSettingsPanel, below. To give it a key
+// too: one line in SETTING_KEYS ([#24]) - see TO ADD A KEY there.
+// Wires one settings-panel toggle switch: seeds its checked state
+// from the current value of a global var, and on change writes the
+// var + localStorage + (optionally) redraws the board so the effect
+// is visible immediately without waiting for the next move.
+function wireSettingsToggle(checkboxId, getter, setter) {
+  var box = el(checkboxId);
+  box.checked = !!getter();
+  box.addEventListener("change", function () {
+    setter(box.checked);
+    BOARD.render();
+    // (a focused switch would keep the keyboard shortcuts off - [#24])
+    box.blur();
+  });
+}
+
+// Shows/hides the ALT box (see .alt-row) and lets syncNotesHeight()
+// re-measure so the comment box immediately reclaims (or gives back)
+// the space, rather than waiting for some other layout-triggering
+// event to happen to notice.
+// (With the switch on, syncNotesHeight still hides it when there's no
+// room - [#20].)
+function applyShowAltBox() {
+  el("altRow").classList.toggle("hidden", !showAltBox);
+  syncNotesHeight();
+}
+
+// Anchors #settingsPanel's bottom-left corner exactly to the
+// board's lower-left corner, so its bottom edge lines up with the
+// board's bottom edge - right above the gear button, the first
+// button under the board. Recomputed on open and on
+// resize/orientation change while the panel is showing, since the
+// board can reflow.
+function positionSettingsPanel() {
+  placeMenu(el("settingsPanel"), el("boardFrame").getBoundingClientRect().left);
+}
+
+// Places a pop-up menu (the Settings menu, or the mode menu - [#2])
+// with its bottom edge on the board's bottom edge and its left edge
+// at `left` (in px from the window's left), kept on screen - at least
+// --gap (trainer.css [#2]) from its edges, like the page itself.
+// TOO TALL to fit between the top of the screen (less --gap) and the
+// board's bottom edge: it stops there and its rows scroll inside,
+// under its title, which stays put (trainer.css [#9]) - so it never
+// covers the buttons under the board. (If the board's bottom edge is
+// off the bottom of the screen, the screen's bottom edge is used
+// instead; and if the board has been scrolled almost off the top of
+// the screen, leaving less than MENU_MIN_HEIGHT, the menu takes the
+// screen's whole height.)
+var MENU_MIN_HEIGHT = 240;
+function placeMenu(panel, left) {
+  var gap = parseFloat(cssVar("--gap", "")) || 0; // (board.js [#2])
+  var boardRect = el("boardFrame").getBoundingClientRect();
+  var bottom = Math.min(boardRect.bottom, window.innerHeight - gap);
+  if (bottom - gap < MENU_MIN_HEIGHT) bottom = window.innerHeight - gap;
+  panel.style.left = Math.round(left) + "px";
+  panel.style.bottom = Math.round(window.innerHeight - bottom) + "px";
+  panel.style.top = "auto";
+  panel.style.maxHeight = Math.max(0, Math.round(bottom - gap)) + "px";
+  // Clamp so it never runs off the right edge on narrow screens.
+  var maxLeft = window.innerWidth - panel.offsetWidth - gap;
+  if (parseFloat(panel.style.left) > maxLeft) {
+    panel.style.left = Math.max(gap, maxLeft) + "px";
+  }
+}
+
+function wireSettingsPanel() {
+  wireSettingsToggle("toggleAutoPractice",
+    function () { return autoPractice; },
+    function (v) { autoPractice = v; saveSetting("autoPractice", v); });
+  wireSettingsToggle("toggleShowChapterName",
+    function () { return showChapterName; },
+    function (v) { showChapterName = v; saveSetting("showChapterName", v); populateChapterSelect(); });
+  wireSettingsToggle("toggleShowAnnotations",
+    function () { return showAnnotations; },
+    function (v) { showAnnotations = v; saveSetting("showAnnotations", v); });
+  wireSettingsToggle("toggleShowMaterialCount",
+    function () { return showMaterialCount; },
+    function (v) { showMaterialCount = v; saveSetting("showMaterialCount", v); });
+  wireSettingsToggle("toggleShowAltBox",
+    function () { return showAltBox; },
+    function (v) { showAltBox = v; saveSetting("showAltBox", v); applyShowAltBox(); });
+  wireSettingsToggle("toggleShowLastMoveHighlight",
+    function () { return showLastMoveHighlight; },
+    function (v) { showLastMoveHighlight = v; saveSetting("showLastMoveHighlight", v); });
+  wireSettingsToggle("toggleShowCheckHighlight",
+    function () { return showCheckHighlight; },
+    function (v) { showCheckHighlight = v; saveSetting("showCheckHighlight", v); });
+
+  el("dateNavPrev").addEventListener("click", function () { shiftSRViewDate(-1); });
+  el("dateNavNext").addEventListener("click", function () { shiftSRViewDate(1); });
+  // Tapping the date label itself is a shortcut back to today,
+  // rather than clicking "next" over and over from several days back.
+  el("dateNavLabel").addEventListener("click", function () {
+    if (!isViewingToday()) {
+      srViewDate = realToday();
+      updateDateNavUI();
+      if (listMode === "sr") refreshChapterList();
+    }
+  });
+  updateDateNavUI();
+
+  el("btnSettings").addEventListener("click", function () {
+    el("settingsBackdrop").classList.remove("hidden");
+    positionSettingsPanel();
+    el("settingsPanel").scrollTop = 0; // (opens at the top every time)
+  });
+  // The folder button, on the title's row: the data page, in this tab
+  // (DATA_PAGE, [#9]). Back comes back here, as it was left - reload
+  // to pick up files loaded there. (Not from the Code app: Safari
+  // can't load a page from its server a second time.)
+  el("btnDataPage").addEventListener("click", function () {
+    window.location.href = DATA_PAGE;
+  });
+  // Tapping outside the menu closes it. Uses "click" on purpose:
+  // closing any earlier lets the tap go through to whatever is
+  // underneath, so tapping the gear would close the menu and then
+  // open it again.
+  el("settingsBackdrop").addEventListener("click", function (e) {
+    if (e.target === el("settingsBackdrop")) el("settingsBackdrop").classList.add("hidden");
+  });
+  el("settingsPanel").addEventListener("click", function (e) { e.stopPropagation(); });
+  window.addEventListener("resize", function () {
+    if (!el("settingsBackdrop").classList.contains("hidden")) positionSettingsPanel();
+  });
+}
+
+/*==================================================================
+ * [#22] ENGINE & EXPLORER — The Stockfish engine lives in engine.js
+ * and the Lichess opening explorer (with the background data
+ * collection) in explorer.js (both loaded before this script, like
+ * rules.js).
+ *
+ * The trainer only ever talks to the engine through the ENGINE
+ * object:
+ *   ENGINE.init() ............ once, from boot
+ *   ENGINE.positionChanged() . the board position changed
+ *   ENGINE.drawArrows() ...... from renderMiniBoard
+ *   ENGINE.shutDown() ........ Practice on / nothing loaded (turns
+ *                              Engine and Threat off; Stockfish stays
+ *                              loaded, idle)
+ *   ENGINE.updateUI() ........ refresh the Engine and Threat buttons
+ *                              and the lines
+ *   ENGINE.toggle() / .toggleThreat()
+ *                              the Engine and Threat buttons and the
+ *                              "l" and "x" keys ([#23], [#24]) - only
+ *                              one of them on at a time
+ *   ENGINE.toggleArrows() .... the "a" key ([#24])
+ * In the other direction, engine.js calls playEngineLine ([#14])
+ * when a move in one of its lines is tapped (a tap being a touch that
+ * moved no more than TAP_SLOP, [#11]), and reports any error through
+ * pageWarn (errors.js [#1]), which stops the page.
+ *
+ * ...and to the explorer through the EXPLORER object:
+ *   EXPLORER.init() ............ once, from boot
+ *   EXPLORER.positionChanged() . the board position changed (with
+ *                                the same calls as the engine's)
+ *   EXPLORER.updateUI() ........ Practice on / off (redraws it)
+ *   EXPLORER.shutDown() ........ Practice on / the page stopped by
+ *                                an error (turns it off)
+ *   EXPLORER.toggle() .......... the "e" key ([#24])
+ *   EXPLORER.chapterOpened(ch) . a chapter opened ([#4]): an
+ *                                opening chapter, or null (a puzzle,
+ *                                or nothing - the explorer turns off)
+ * In the other direction, explorer.js calls playEngineLine ([#14])
+ * when one of its moves is tapped (TAP_SLOP too), and todayString
+ * ([#3]) to date its answers. When Lichess can't answer
+ * it just says so on its own line; that isn't a page error.
+ *
+ * If engine.js or explorer.js is missing, the file check stops the
+ * page (errors.js [#3]); these do-nothing stand-ins just keep the
+ * rest of the page from failing on the way there.
+ *==================================================================*/
+if (typeof ENGINE === "undefined") {
+  window.ENGINE = {
+    missing: true, // checked by checkExternalFiles (errors.js [#3])
+    init: function () {
+      ["btnEngine", "btnThreat"].forEach(function (id) { el(id).disabled = true; });
+      el("btnEngine").title = "engine.js is missing";
+    },
+    positionChanged: function () {},
+    drawArrows: function () {},
+    shutDown: function () {},
+    updateUI: function () {},
+    toggle: function () {},
+    toggleThreat: function () {},
+    toggleArrows: function () {}
+  };
+}
+if (typeof EXPLORER === "undefined") {
+  window.EXPLORER = {
+    missing: true, // checked by checkExternalFiles (errors.js [#3])
+    init: function () {
+      el("btnExplorer").disabled = true;
+      el("btnExplorer").title = "explorer.js is missing";
+    },
+    positionChanged: function () {},
+    updateUI: function () {},
+    shutDown: function () {},
+    toggle: function () {},
+    chapterOpened: function () {}
+  };
+}
+
+/*==================================================================
+ * [#23] BUTTON WIRING — every button, dropdown and on-screen
+ * control, except the Settings panel's ([#21]), the engine lines
+ * (engine.js) and the explorer's table (explorer.js).
+ *==================================================================*/
+function wireUI() {
+  updateListModeButton();
+  buildModeMenu();
+  wireModeMenu();
+  updatePracticeIcon();
+  wireSettingsPanel();
+
+  el("btnStart").addEventListener("click", navStart);
+  el("btnPrev").addEventListener("click", navPrev);
+  el("btnNext").addEventListener("click", function () {
+    // If the opponent's move is still sliding, currentPly hasn't
+    // advanced yet and its target IS currentPly + 1 - so a click here
+    // just snaps that in-flight animation straight to completion
+    // instead of restarting a fresh one on top of it.
+    navNext(BOARD.isAnimating());
+  });
+  // >> - or Next at the end of a line ([#6]). On pointerup
+  // (bindTap, [#11]): it turns into Next in the middle of a gesture.
+  bindTap(el("btnEnd"), endButton);
+  el("btnPractice").addEventListener("click", togglePractice);
+  el("chapterSel").addEventListener("change", function () {
+    loadChapter(parseInt(this.value, 10));
+    this.blur();
+  });
+  // the Library's color square and Study dropdown ([#5])
+  el("libraryColor").addEventListener("click", switchLibraryColor);
+  el("libraryStudy").addEventListener("change", function () {
+    pickLibraryStudy(this.value);
+    this.blur();
+  });
+  el("btnChapterLink").addEventListener("click", openChapterLink);
+  // The comment box itself is the "tap to advance" target while the
+  // note gate is up ([#16]). Any other time - the end of a line
+  // included (only >> goes on to the next chapter, [#6]) - tapping the
+  // comment does nothing.
+  // Scrolling is never a tap: a touch that moved more than TAP_SLOP
+  // ([#11]), or scrolled the comment, between going down and coming
+  // up does nothing - so reading a long comment can't play the next
+  // move.
+  var commentDown = null;
+  el("commentBox").addEventListener("pointerdown", function (e) {
+    commentDown = { x: e.clientX, y: e.clientY, scroll: el("commentText").scrollTop };
+  });
+  bindTap(el("commentBox"), function (e) {
+    var d = commentDown;
+    commentDown = null;
+    // (with an error showing, it isn't a tap target at all -
+    // errors.js [#1])
+    if (pageStopped()) return;
+    if (e.type === "pointerup" && (!d || el("commentText").scrollTop !== d.scroll ||
+        Math.abs(e.clientX - d.x) > TAP_SLOP || Math.abs(e.clientY - d.y) > TAP_SLOP)) return;
+    if (noteGateOpen) passNoteGate();
+  });
+  // While the promotion picker is up, pressing anywhere other than
+  // one of its piece choices - the dimmed board, a nav button, the
+  // sidebar, anywhere on the page - cancels the promotion without
+  // playing anything, same as clicking away from it on Lichess.
+  // Whatever was pressed still does its own job (the forward button
+  // still steps forward, and so on). Listens in the capture phase so
+  // it sees every press before any other handler can stop it.
+  document.addEventListener("pointerdown", function (e) {
+    if (el("promoPicker").classList.contains("hidden")) return;
+    if (e.target.closest && e.target.closest(".promotion-piece")) return;
+    BOARD.closePromoPicker();
+  }, true);
+  // the mode button opens the mode menu ([#2])
+  el("btnListMode").addEventListener("click", openModeMenu);
+  // the comments button - same as the "c" key ([#18], [#24]); lit
+  // to match the saved setting from the start
+  updateCommentsButton();
+  el("btnComments").addEventListener("click", toggleComments);
+  // the explorer button - same as the "e" key ([#24])
+  el("btnExplorer").addEventListener("click", explorerKey);
+  // the Threat and Engine buttons - same as the "x" and "l" keys
+  // ([#24]); turning one on turns the other off
+  el("btnThreat").addEventListener("click", function () { engineKey(true); });
+  el("btnEngine").addEventListener("click", function () { engineKey(false); });
+}
+
+// The Play/Stop button and the "t" key ([#24]): Practice on or off.
+// Turning it on deletes the analysis line and shuts the engine off
+// (setMode, [#15]).
+function togglePractice() {
+  setMode(mode === "practice" ? "browse" : "practice");
+}
+
+/*==================================================================
+ * [#24] KEYBOARD SHORTCUTS — every key the trainer responds to,
+ * all wired here and nowhere else (while an error has the page
+ * stopped, errors.js [#1] keeps every key from getting here).
+ * README.md lists the same keys (Keyboard shortcuts) - a new or
+ * changed key goes there too:
+ *
+ *   Left / Right arrow ... previous / next move (on the analysis
+ *                          line, through your own moves)
+ *   p / n ................ previous / next chapter, as on Lichess. No
+ *                          wraparound: p on the first chapter and n
+ *                          on the last do nothing.
+ *   t .................... practice mode on / off ("train") - same as
+ *                          tapping the Play/Stop button. Turning
+ *                          Practice on deletes the analysis line and
+ *                          shuts the engine off, like the button.
+ *   Space ................ continue past a comment - same as tapping
+ *                          the comment box while it's waiting (also
+ *                          shows a blindfold puzzle's hidden pieces,
+ *                          [#12]).
+ *   l .................... Engine on / off - same as tapping the
+ *                          Engine button (the chip). Turns Threat off
+ *                          if it was on. In Practice mode: leaves
+ *                          Practice mode and turns the engine on, in
+ *                          one go.
+ *   x .................... Threat on / off - same as tapping the
+ *                          Threat button (the crosshair). Turns the
+ *                          engine off if it was on; turning Threat
+ *                          off leaves both off. In Practice mode:
+ *                          leaves Practice and turns Threat on
+ *                          (nothing while the side to move is in
+ *                          check, where the button is dimmed).
+ *                          Turning either off never goes back into
+ *                          Practice.
+ *   a .................... engine arrows on / off (threat arrows
+ *                          too); the lines stay. Only while Engine or
+ *                          Threat is on. Not saved: arrows are back on
+ *                          when the page opens.
+ *   e .................... opening explorer on / off - same as
+ *                          tapping the explorer button (as on
+ *                          Lichess). In Practice mode: leaves
+ *                          Practice mode and turns the explorer on,
+ *                          in one go. Turning Practice on turns the
+ *                          explorer off, like the engine.
+ *   c .................... comments on / off - same as tapping the
+ *                          comments button (the speech bubble,
+ *                          toggleComments, [#18]): saved, and the
+ *                          button lights up while they're on. Turned
+ *                          off while a comment is waiting to be
+ *                          tapped past, the opponent's reply is
+ *                          played at once (applyShowComments,
+ *                          [#18]). Unlike e, l and x, it doesn't
+ *                          leave Practice.
+ *   m .................... Settings > Show material count on / off -
+ *                          the same as tapping its switch. (With equal
+ *                          material there's no number to show, so the
+ *                          board doesn't change until it isn't.)
+ *   b .................... Settings > Show move annotations on / off
+ *                          ("b" for badges) - the badges, and the
+ *                          chapter's arrows and circles with them
+ *                          (board.js [#3], [#6]). Not the engine's
+ *                          arrows - that's "a".
+ *   i .................... Settings > Show chapter name on / off ("i"
+ *                          for ID) - the names in the Chapter
+ *                          dropdown, or just "#N" (the Library always
+ *                          shows names - [#5]).
+ *   o .................... Settings > Show ALT box on / off ("o" for
+ *                          other moves) - the box under the comment
+ *                          box with the move's ALT: moves
+ *                          (applyShowAltBox, [#21]).
+ * (m, b, i and o are the SETTING KEYS - see below. Each one shows
+ * as "[m]" just left of its switch in the Settings menu.)
+ *
+ * While a blindfold puzzle's pieces are hidden ([#12]), l, x and e do
+ * nothing, like the Engine, Threat and explorer buttons, which are
+ * dimmed. (c and the SETTING KEYS still work there.)
+ *
+ * Shift does nothing: with Shift or Caps Lock on, the letter keys
+ * (P, N, T, L, X, A, E, C and the SETTING KEYS) do nothing. Holding a
+ * letter key or Space down acts once, not over and over; the arrow
+ * keys do repeat while held.
+ *
+ * No shortcut does anything when:
+ *   - a text field or one of the chapter row's dropdowns has focus
+ *   - Cmd, Ctrl or Option is held, so browser shortcuts like Cmd+N
+ *     (new window) and Cmd+P (print) still work normally
+ *   - the Settings menu, the mode menu or the promotion picker is
+ *     open - except a SETTING KEY (below) with the Settings menu
+ *     open: it flips one of that menu's own switches, so you see the
+ *     switch move right there
+ *   - no chapters are loaded yet
+ *
+ * SETTING KEYS - a key that flips a Settings switch (m, b, i, o)
+ * is ONE line in SETTING_KEYS, below: the key, and its switch's
+ * checkbox id. That line alone wires it (settingKey - the same as
+ * tapping the switch), lets it work with the Settings menu open,
+ * makes holding it act once, and shows "[m]" just left of the
+ * switch in the menu (showSettingKeyHints). No case in
+ * wireKeyboardShortcuts, and nothing to add to the menu's markup.
+ *
+ * TO ADD A KEY:
+ *   1. Pick one nobody uses - the list above is every key taken.
+ *   2. For a Settings switch: its line in SETTING_KEYS. For anything
+ *      else: a case in wireKeyboardShortcuts (copy "e" -
+ *      preventDefault, and !keyEvent.repeat so holding it acts once).
+ *   3. Its line in the list above (and for a Settings switch, its
+ *      letter in the SETTING KEYS line there).
+ *   4. Its row in README.md (Keyboard shortcuts).
+ * A key meant to work with the mode menu or the promotion picker
+ * open needs an exception of its own in shortcutsBlocked, the way
+ * SETTING_KEYS has one for the Settings menu.
+ *==================================================================*/
+// SETTING KEYS (above): a key -> the checkbox id of the Settings
+// switch it flips (the ids are in the Settings panel's markup, at the
+// top of this page). These keys also work with the Settings menu
+// open (shortcutsBlocked).
+var SETTING_KEYS = {
+  m: "toggleShowMaterialCount",  // Show material count
+  b: "toggleShowAnnotations",    // Show move annotations (badges)
+  i: "toggleShowChapterName",    // Show chapter name (ID)
+  o: "toggleShowAltBox"          // Show ALT box (other moves)
+};
+
+// Each SETTING KEY shown in the Settings menu, "[m]", just left of
+// its switch - all of them in one column, so the menu says which key
+// flips which switch. Made from SETTING_KEYS, once, at boot
+// (wireKeyboardShortcuts), so the menu can never show a key that
+// isn't wired, or miss one that is. Its look and place: .key-hint in
+// trainer.css [#9]. (It's inside the row's <label>, so tapping it
+// flips the switch too, like the rest of the row.)
+function showSettingKeyHints() {
+  Object.keys(SETTING_KEYS).forEach(function (key) {
+    var row = el(SETTING_KEYS[key]).closest(".settings-row");
+    var sw = row && row.querySelector(".switch");
+    if (!sw) return;
+    var hint = document.createElement("span");
+    hint.className = "key-hint";
+    hint.textContent = "[" + key + "]";
+    row.insertBefore(hint, sw);
+  });
+}
+
+function shortcutsBlocked(e) {
+  var tag = (e.target && e.target.tagName) || "";
+  if (tag === "SELECT" || tag === "INPUT" || tag === "TEXTAREA") return true;
+  if (e.metaKey || e.ctrlKey || e.altKey) return true;
+  if (!el("settingsBackdrop").classList.contains("hidden") &&
+      !SETTING_KEYS.hasOwnProperty(e.key)) return true;
+  if (modeMenuOpen()) return true;
+  if (!el("promoPicker").classList.contains("hidden")) return true;
+  if (!chapters.length) return true;
+  return false;
+}
+
+// The Engine and Threat buttons ([#23]) and the "l" (engine) and "x"
+// (threat) keys - only one of the two is ever on, so turning one on
+// turns the other off (engine.js). In browse mode they just do that. In Practice mode - where both are always off -
+// they first leave Practice, then turn theirs on. Nothing while the
+// button is dimmed: the Threat button where there's no threat to
+// show (in check), both while a blindfold puzzle's pieces are hidden
+// ([#12]), and both with no engine.js.
+function engineKey(threat) {
+  if (ENGINE.missing) return; // no engine.js - nothing to turn on
+  if (piecesHidden) return;   // a blindfold puzzle's hidden pieces ([#12])
+  if (el(threat ? "btnThreat" : "btnEngine").disabled) return;
+  if (mode === "practice") setMode("browse");
+  if (threat) ENGINE.toggleThreat();
+  else ENGINE.toggle();
+}
+
+// the "e" key and the explorer button under the board ([#23]). In
+// browse mode: explorer on / off. In Practice mode - where the
+// explorer is always off - it leaves Practice and turns the explorer
+// on, in one go. Nothing while the button is dimmed (updateControls,
+// [#13]): Puzzles mode, or no explorer.js.
+function explorerKey() {
+  if (el("btnExplorer").disabled) return;
+  if (mode === "practice") setMode("browse");
+  EXPLORER.toggle();
+  // Refit the column beside the board ([#20]). Usually its
+  // ResizeObserver does that by itself, but not when the explorer was
+  // already hidden for lack of room: turning it off then changes no
+  // box's size, so nothing would notice the room it gives back.
+  syncNotesHeight();
+}
+
+// A SETTING KEY (SETTING_KEYS, above - "m", "b"...): flips a Settings
+// switch (its checkbox's id) exactly as tapping it does - its own
+// change handler (wireSettingsToggle, [#21]) saves it, applies it
+// and redraws the board, and the switch in the menu shows the new
+// state - moving right there if the menu is open. One path for both,
+// so the key and the switch can never disagree.
+function settingKey(checkboxId) {
+  var box = el(checkboxId);
+  box.checked = !box.checked;
+  box.dispatchEvent(new Event("change"));
+}
+
+function wireKeyboardShortcuts() {
+  showSettingKeyHints();
+  document.addEventListener("keydown", function onShortcutKeydown(keyEvent) {
+    if (shortcutsBlocked(keyEvent)) return;
+    // a key that flips a Settings switch (SETTING_KEYS) - no case of
+    // its own below
+    if (SETTING_KEYS.hasOwnProperty(keyEvent.key)) {
+      keyEvent.preventDefault();
+      if (!keyEvent.repeat) settingKey(SETTING_KEYS[keyEvent.key]);
+      return;
+    }
+    switch (keyEvent.key) {
+      case "ArrowLeft":
+        keyEvent.preventDefault();
+        navPrev();
+        break;
+      case "ArrowRight":
+        keyEvent.preventDefault();
+        // Mid-slide, this snaps the opponent's move to its end
+        // instead of starting a new animation on top of it (same as
+        // btnNext).
+        navNext(BOARD.isAnimating());
+        break;
+      case "p":
+        keyEvent.preventDefault();
+        if (!keyEvent.repeat) stepChapter(-1);
+        break;
+      case "n":
+        keyEvent.preventDefault();
+        if (!keyEvent.repeat) stepChapter(1);
+        break;
+      case "t":
+        keyEvent.preventDefault();
+        if (!keyEvent.repeat) togglePractice();
+        break;
+      case "l":
+        keyEvent.preventDefault();
+        if (!keyEvent.repeat) engineKey(false);
+        break;
+      case "x":
+        keyEvent.preventDefault();
+        if (!keyEvent.repeat) engineKey(true);
+        break;
+      case "a":
+        keyEvent.preventDefault();
+        if (!keyEvent.repeat) ENGINE.toggleArrows();
+        break;
+      case "c":
+        keyEvent.preventDefault();
+        if (!keyEvent.repeat) toggleComments();
+        break;
+      case "e":
+        keyEvent.preventDefault();
+        if (!keyEvent.repeat) explorerKey();
+        break;
+      case " ":
+        // Always claimed, so Space never scrolls the page. Only does
+        // something while a comment is waiting to be tapped past.
+        keyEvent.preventDefault();
+        if (!keyEvent.repeat && noteGateOpen) passNoteGate();
+        break;
+    }
+  });
+  // A button that was just clicked keeps keyboard focus, and the
+  // browser "presses" a focused button when Space is released. Block
+  // that, so Space only ever means "continue" and never also re-fires
+  // whichever button was clicked last (e.g. Next).
+  document.addEventListener("keyup", function (e) {
+    if (e.key === " " && !shortcutsBlocked(e)) e.preventDefault();
+  });
+}
+
+/*==================================================================
+ * [#25] BOOT & STOP — boot runs once, on DOMContentLoaded, in
+ * dependency order. stopGameplay is its opposite: what an
+ * error does to the game (errors.js [#1]).
+ *==================================================================*/
+function boot() {
+  if (!checkExternalFiles()) return;
+  initGameState();
+  loadSavedSettings();
+  BOARD.init();
+  wireUI();
+  wireKeyboardShortcuts();
+  applyShowAltBox();
+  wireDayChange();
+  preventDoubleTapZoom();
+
+  startupLoadFiles();
+
+  // engine.js wires the taps on its lines and brings its saved copy
+  // of the Stockfish files up to date straight away, while the Code
+  // app's server is sure to be answering. (Stockfish itself only
+  // loads the first time Engine or Threat is turned on, then stays
+  // loaded.)
+  ENGINE.init();
+
+  // explorer.js wires its table, and reads the Lichess token and the
+  // answers saved in the browser.
+  EXPLORER.init();
+
+  syncNotesHeight();
+  window.addEventListener("resize", syncNotesHeight);
+  if (window.ResizeObserver) {
+    new ResizeObserver(syncNotesHeight).observe(document.getElementById("boardFrame"));
+    // also whenever one of the boxes above the comment box changes
+    // height - an analysis line wrapping onto another row, the
+    // engine's lines or a message appearing, the explorer's table
+    // coming and going - so the comment box always re-fits
+    // and the sidebar never runs past the bottom of the board.
+    // (Showing or hiding one is a height change too - also when
+    // syncNotesHeight hides one for room ([#20]): the browser then
+    // checks it again a frame later, and says so with a
+    // "ResizeObserver loop" message, which errors.js [#2] passes
+    // over.)
+    ["moveListBox", "engineLines", "explorerBox"].forEach(function (id) {
+      new ResizeObserver(syncNotesHeight).observe(document.getElementById(id));
+    });
+  }
+  // Keep the "more below" chevron in sync as the user scrolls the
+  // comment box themselves (fades out once they reach the bottom).
+  el("commentText").addEventListener("scroll", syncCommentScrollCue, { passive: true });
+}
+
+document.addEventListener("DOMContentLoaded", boot);
+
+// Called by errors.js [#1] when an error comes in: every timer,
+// slide, menu, engine search and explorer request stops. After
+// that, goToPly, goToAnalysis, loadChapter, tryPlayMove and the
+// auto-play all check pageStopped() and do nothing, so the game
+// can't start up again until the page is reloaded. (Not
+// settleBoard: a parked wrong move is left where it is rather than
+// redrawn while the page stops.)
+function stopGameplay() {
+  cancelPause();
+  hideNoteGate();
+  BOARD.stopAnimation();
+  BOARD.closePromoPicker();
+  ENGINE.shutDown();
+  EXPLORER.shutDown();
+  el("settingsBackdrop").classList.add("hidden");
+  closeModeMenu();
+}
+</script>
+</body>
+</html>

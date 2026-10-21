@@ -1,0 +1,1198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>data</title>
+<!-- =================================================================
+     data.html - THE TRAINER'S DATA PAGE
+
+     Everything about the trainer's files and the Lichess data, in one
+     place, so the trainer itself only has to read them:
+       - TOKEN ([#6]) - the Lichess token, pasted once: Start needs it
+         here, and the trainer's explorer and background collection
+         read it too.
+       - OPENINGS, PUZZLES, EXPLORER - the three load buttons ([#6])
+         - pick openings.jsonl, puzzles.jsonl or explorer_data.jsonl.
+         Each is checked and kept in the browser, where the trainer
+         reads it the next time it opens. Only needed for a file that
+         has changed (after a rebuild), or after the browser's data
+         has been cleared.
+       - THE AGE TABLE ([#8]) - how old the Lichess answers are for
+         the positions of the chapters picked.
+       - START ([#9], [#10]) - asks Lichess for every position of
+         those chapters that has no answer yet, or one over a year
+         old, then refreshes "Refresh early" more of the oldest ones,
+         so a whole year's data never goes stale at once.
+       - SAVE ([#11]) - explorer_data.jsonl with every answer
+         kept in the browser. Where the browser can, it opens the
+         share sheet: Save to Files puts it straight in the folder you
+         pick (replacing the old one). Otherwise it's downloaded.
+     It can't do any harm by itself: nothing is ever deleted, and an
+     answer is only ever replaced by a newer one.
+
+     It reads and writes the trainer's own storage in this browser
+     (trainer.html [#8], [#21]; explorer.js [#4]):
+       - the openings and puzzles files the trainer reads at start-up
+       - the explorer's answers - everything the trainer gets from
+         Lichess goes there too (its explorer button, and the open
+         line it collects in the background - explorer.js [#10]),
+         so it ends up in the next save
+       - the Lichess token - saved here ([#6]), and read by the
+         trainer (explorer.js [#6])
+     So it has to run in the SAME browser and from the SAME address
+     as the trainer (the Code app's window and full Safari each keep
+     their own storage), from the same folder (it uses rules.js).
+     The trainer reads the files when it opens - load new ones here
+     first, or reload the trainer afterwards.
+
+     Same games as the trainer's explorer (explorer.js [#1]), and the
+     same pace as Lichess allows (one request, then DELAY_MS before
+     the next), with a minute's pause after "too many requests". Each
+     answer is kept the moment it arrives, so stopping, closing or a
+     dropped connection loses nothing: tap Start again and it carries
+     on with what's missing.
+
+     SECTIONS
+       [#1]  SETTINGS ........... the games, the pace, the storage
+       [#2]  STATE
+       [#3]  SMALL HELPERS ...... settings, numbers, dates, the log
+       [#4]  AN ANSWER .......... packed and checked like explorer.js
+       [#5]  THE BROWSER'S STORAGE  the files and the answers
+       [#6]  THE TOP ROW ........ the Token button and the three
+                                  Load buttons
+       [#7]  THE CHAPTERS ....... the scope dropdown; each scope's
+                                  positions
+       [#8]  THE AGE TABLE
+       [#9]  THE PLAN ........... what Start will ask for
+       [#10] THE RUN ............ asking Lichess; Start / Stop
+       [#11] SAVE DATA .......... explorer_data.jsonl
+       [#12] START-UP ........... and coming back on screen
+     ================================================================= -->
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff; --fg: #222222; --dim: #777777; --line: #dddddd;
+  --accent: #2f7de1; --bad: #c0392b; --ok: #2e8b57;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1e1e1e; --fg: #e6e6e6; --dim: #9a9a9a; --line: #3a3a3a;
+    --accent: #5aa2ff; --bad: #ff6b5b; --ok: #5fd18b;
+  }
+}
+/* THE LAYOUT - all of it fits on the iPad's screen, with no
+   scrolling: the page is exactly the window's height, and only the
+   log at the bottom scrolls, inside the room that's left.
+     the files row ... Token, Openings, Puzzles, Explorer (the three
+                       Load buttons) and Save side by side, each with
+                       its status under it (3 + 2 on a narrow screen)
+     the controls .... the chapters, Refresh early and Start in one
+                       row
+     the age table ... one strip of boxes: each pool's name, and its
+                       count under it (3 x 2 on a narrow screen)
+     the progress, then the log */
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 19px/1.45 -apple-system, system-ui, sans-serif; }
+main { max-width: 1100px; height: 100%; height: 100dvh; margin: 0 auto;
+  padding: 16px; box-sizing: border-box; display: flex; flex-direction: column; }
+select, button { font: inherit; padding: 10px 14px; border-radius: 8px;
+  border: 1px solid var(--line); background: transparent; color: var(--fg); }
+select { min-width: 0; }
+button { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.plain { background: transparent; color: var(--accent); }
+button.stop { background: var(--bad); border-color: var(--bad); }
+button:disabled, select:disabled { opacity: .45; }
+.files { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+.files button { width: 100%; }
+.files .title, #go { font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.status { color: var(--dim); font-size: 17px; line-height: 1.35; }
+.files .status { margin-top: 6px; white-space: pre-line; overflow-wrap: anywhere; }
+.warn { color: var(--bad); font-size: 17px; margin-top: 10px; }
+.warn:empty { display: none; }
+.controls { display: flex; align-items: center; gap: 12px; margin-top: 18px;
+  padding-top: 18px; border-top: 1px solid var(--line); }
+#scope { flex: 1 1 auto; }
+#go { min-width: 110px; }
+#ages { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); margin-top: 14px;
+  border: 1px solid var(--line); border-radius: 8px; font-variant-numeric: tabular-nums; }
+#ages:empty { display: none; }
+#ages > div { padding: 8px; text-align: center; font-size: 22px; }
+#ages > div + div { border-left: 1px solid var(--line); }
+#ages .name { display: block; color: var(--dim); font-size: 17px; white-space: nowrap; }
+#ages .due { color: var(--bad); }
+#ages .due .name { color: var(--bad); }
+.bar { height: 10px; background: var(--line); border-radius: 5px;
+  overflow: hidden; margin: 16px 0 8px; }
+.bar > div { height: 100%; width: 0; background: var(--accent);
+  transition: width .3s; }
+#status { font-variant-numeric: tabular-nums; }
+#chapter { color: var(--dim); font-size: 17px; min-height: 1.45em; }
+#log { flex: 1 1 auto; min-height: 60px; margin-top: 8px; padding-top: 8px;
+  border-top: 1px solid var(--line);
+  font: 16px/1.45 ui-monospace, Menlo, monospace; color: var(--dim);
+  white-space: pre-wrap; overflow: auto; }
+@media (max-width: 700px) {
+  .files { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .controls { flex-wrap: wrap; }
+  #scope { flex-basis: 100%; }
+  #ages { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+.bad { color: var(--bad); }
+.ok { color: var(--ok); }
+</style>
+</head>
+<body>
+<main>
+  <!-- (any file type: iPadOS doesn't know .jsonl, and would grey
+       the files out) -->
+  <!-- Each button with its status under it: the token's, or the
+       file, when it was loaded, and what's in it ([#6], [#11]) -->
+  <div class="files">
+    <div><button type="button" class="plain" id="tokenButton" disabled>
+        <span class="title">Token</span></button>
+      <div class="status" id="tokenStatus"></div></div>
+    <div><button type="button" class="plain" id="loadOpenings" disabled>
+        <span class="title">Openings</span></button>
+      <div class="status" id="statusOpenings"></div></div>
+    <div><button type="button" class="plain" id="loadPuzzles" disabled>
+        <span class="title">Puzzles</span></button>
+      <div class="status" id="statusPuzzles"></div></div>
+    <div><button type="button" class="plain" id="loadData" disabled>
+        <span class="title">Explorer</span></button>
+      <div class="status" id="statusData"></div></div>
+    <div><button type="button" id="saveData" disabled>
+        <span class="title" id="saveTitle">Save</span></button>
+      <div class="status" id="saveStatus"></div></div>
+  </div>
+  <input type="file" id="picker" hidden>
+  <div class="warn" id="emptyWarn"></div>
+  <div class="warn" id="saveWarn"></div>
+
+  <div class="controls">
+    <select id="scope" disabled></select>
+    <label class="status" for="early">Refresh early</label>
+    <select id="early" disabled></select>
+    <button type="button" id="go" disabled>Start</button>
+  </div>
+  <div id="ages"></div>
+  <div class="bar"><div id="fill"></div></div>
+  <div id="status">Reading the trainer's saved data…</div>
+  <div id="chapter"></div>
+
+  <div id="log"></div>
+</main>
+
+<script src="rules.js"></script>
+<script>
+(function () {
+"use strict";
+
+/*==================================================================
+ * [#1] SETTINGS - the games are explorer.js's own ([#1]), so the
+ * answers mean exactly what the trainer's do. Change them there and
+ * here together.
+ *==================================================================*/
+var EXPLORER_URL = "https://explorer.lichess.ovh/lichess";
+var EXPLORER_SPEEDS = ["bullet", "blitz", "rapid", "classical", "correspondence"];
+var EXPLORER_RATINGS = [1000, 1200, 1400, 1600, 1800, 2000, 2200, 2500];
+var EXPLORER_MOVES = 12;
+var EXPLORER_KEEP_DAYS = 365;
+// The wait after each request before the next. Lichess allows about
+// one every 3 seconds non-stop; faster gets "too many requests" and
+// a minute's pause, which ends up slower overall.
+var DELAY_MS = 3000;
+var RATE_LIMIT_MS = 60000;
+// A request that never reaches Lichess (a wifi blip, the iPad
+// asleep), or that Lichess can't answer just then (HTTP 5xx), is
+// tried again after NET_RETRY_MS, up to NET_RETRIES times, then
+// skipped - Start again picks it up.
+var NET_RETRY_MS = 10000;
+var NET_RETRIES = 3;
+// "Refresh early" ([#9]): the choices, and the one picked until you
+// pick another (it's remembered).
+var EARLY_CHOICES = [0, 10, 20, 50, 100, 200, 500];
+var EARLY_DEFAULT = 50;
+// The age table's pools ([#8]): an answer up to AGE_POOLS[i] days
+// old (but over the one before) is in pool i; over the last one it's
+// stale, and asked for again.
+var AGE_POOLS = [90, 180, 270, EXPLORER_KEEP_DAYS];
+// The trainer's own storage: its settings (trainer.html [#21]), its
+// saved files (trainer.html [#8]) and the explorer's answers
+// (explorer.js [#4]).
+var SETTINGS_KEY = "trainer.settings.v1";
+var FILE_DB = "trainerDB", FILE_STORE = "files";
+var SAVED_DB = "lichessExplorerDB", SAVED_STORE = "answers";
+// The data file's name, as Save writes it ([#11]).
+var DATA_FILE = "explorer_data.jsonl";
+
+/*==================================================================
+ * [#2] STATE
+ *==================================================================*/
+var token = null;
+var chapters = [];        // every opening chapter, in file order
+// [{ id, label, list: [chapter, ...] }] - id: "all", or the side and
+// study, so a newly loaded file keeps the same one picked
+var scopes = [];
+// each scope's positions, worked out once per openings file ([#7]):
+// scope id -> [{ key, ci }]
+var scopePositions = new Map();
+// Every answer kept in the browser, as explorer.js keeps them in
+// memory ([#4]): position -> the answer's text...
+var answers = new Map();
+// ...and when it came in from Lichess (ms; -1 for one from a data
+// file) - what Save's line counts as "not saved yet"
+var arrivedAt = new Map();
+var answersDB = null;
+// True if the browser had no answers when the page opened, until a
+// data file is loaded - Save asks before it saves ([#11]).
+var emptyAtStart = false;
+var saveAsked = false;    // Save's second tap saves anyway
+var running = false, stopAsked = false;
+var wakeLock = null;
+
+function el(id) { return document.getElementById(id); }
+
+/*==================================================================
+ * [#3] SMALL HELPERS
+ *==================================================================*/
+// The trainer's settings, read and written the way trainer.html
+// [#21] does: one entry in localStorage. Written here: explorerToken
+// (the token - [#6]), dataSavedAt and dataSavedCount (the last save),
+// dataFile (the explorer file last loaded or saved - [#6]) and
+// dataEarlyRefresh.
+function loadSettings() {
+  try { return JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}; }
+  catch (e) { return {}; }
+}
+function saveSetting(key, value) {
+  var s = loadSettings();
+  s[key] = value;
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); }
+  catch (e) { /* storage full or off: the setting isn't saved */ }
+}
+
+// 4812 -> "4,812"
+function formatNumber(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
+// (4812, "position") -> "4,812 positions"; (1, "line") -> "1 line"
+function count(n, word) { return formatNumber(n) + " " + word + (n === 1 ? "" : "s"); }
+// "Oct 19 9:40 AM" (as trainer.html wrote it)
+function formatSavedAt(ms) {
+  var d = new Date(ms);
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) +
+    " " + d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+// 14 -> "14 min", 130 -> "2 h 10 min"
+function formatMinutes(m) {
+  m = Math.max(1, Math.round(m));
+  return m < 60 ? m + " min" : Math.floor(m / 60) + " h " + (m % 60) + " min";
+}
+function pad2(n) { return (n < 10 ? "0" : "") + n; }
+function todayString() {
+  var d = new Date();
+  return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());
+}
+
+function log(text, cls) {
+  var line = document.createElement("div");
+  var d = new Date();
+  line.textContent = pad2(d.getHours()) + ":" + pad2(d.getMinutes()) + "  " + text;
+  if (cls) line.className = cls;
+  var box = el("log");
+  box.insertBefore(line, box.firstChild);
+  while (box.children.length > 200) box.removeChild(box.lastChild);
+}
+
+/*==================================================================
+ * [#4] AN ANSWER - packed, checked and dated exactly as explorer.js
+ * [#4] does it, and kept under the same key: positionKey is
+ * explorer.js [#3]'s fenKey, the first four fields of rules.js's
+ * pos.toFen().
+ *==================================================================*/
+function positionKey(pos) {
+  return pos.toFen().split(" ").slice(0, 4).join(" ");
+}
+function packAnswer(a, date) {
+  return JSON.stringify({
+    date: date, w: a.white, d: a.draws, b: a.black,
+    moves: a.moves.map(function (m) { return [m.uci, m.san, m.white, m.draws, m.black]; })
+  });
+}
+// Lichess's answer -> what's kept of it, or null if it isn't one.
+function readAnswer(data) {
+  if (!data || !Array.isArray(data.moves)) return null;
+  var moves = [];
+  data.moves.forEach(function (m) {
+    if (!m || typeof m.uci !== "string" || typeof m.san !== "string") return;
+    moves.push({ uci: m.uci, san: m.san, white: m.white || 0, draws: m.draws || 0, black: m.black || 0 });
+  });
+  return { white: data.white || 0, draws: data.draws || 0, black: data.black || 0, moves: moves };
+}
+// A kept answer (its parsed text, or a data file's line - its "fen"
+// is passed over), checked and written out again the way explorer.js
+// reads it (repackAnswer [#4]) - or null if the trainer wouldn't
+// read it. Such a one is asked for again.
+function repackAnswer(o) {
+  if (!o || typeof o.date !== "string" || !/^\d{4}-\d\d-\d\d$/.test(o.date) ||
+      !Array.isArray(o.moves)) return null;
+  var moves = [];
+  for (var i = 0; i < o.moves.length; i++) {
+    var m = o.moves[i];
+    if (!Array.isArray(m) || typeof m[0] !== "string" || typeof m[1] !== "string") return null;
+    moves.push({ uci: m[0], san: m[1], white: +m[2] || 0, draws: +m[3] || 0, black: +m[4] || 0 });
+  }
+  return packAnswer({ white: +o.w || 0, draws: +o.d || 0, black: +o.b || 0, moves: moves }, o.date);
+}
+function parseAnswerText(text) {
+  try { return repackAnswer(JSON.parse(text)); }
+  catch (e) { return null; }
+}
+// The date of an answer's text: it starts {"date":"YYYY-MM-DD"
+function dateOf(text) { return text.slice(9, 19); }
+// How many days ago an answer was asked for (from that day's start,
+// like explorer.js's isFresh).
+function ageInDays(text) {
+  var p = dateOf(text).split("-");
+  return (Date.now() - new Date(+p[0], +p[1] - 1, +p[2]).getTime()) / 86400000;
+}
+function isFresh(key) {
+  var text = answers.get(key);
+  return !!text && ageInDays(text) <= EXPLORER_KEEP_DAYS;
+}
+
+/*==================================================================
+ * [#5] THE BROWSER'S STORAGE - the trainer's two databases
+ * (IndexedDB): its saved files, and the explorer's answers.
+ *==================================================================*/
+function openDB(name, store) {
+  return new Promise(function (resolve, reject) {
+    var req = indexedDB.open(name, 1);
+    req.onupgradeneeded = function (e) { e.target.result.createObjectStore(store); };
+    req.onsuccess = function (e) { resolve(e.target.result); };
+    req.onerror = function (e) { reject(e.target.error); };
+  });
+}
+
+// A saved file ({ text, filename, savedAt }), or null.
+function readSavedFile(slot) {
+  return openDB(FILE_DB, FILE_STORE).then(function (db) {
+    return new Promise(function (resolve, reject) {
+      var req = db.transaction(FILE_STORE, "readonly").objectStore(FILE_STORE).get(slot);
+      req.onsuccess = function () { resolve(req.result || null); };
+      req.onerror = function (e) { reject(e.target.error); };
+    });
+  });
+}
+
+// A file for the trainer - the same record its own Load buttons used
+// to keep, and what it reads at start-up (trainer.html [#8], [#10]).
+function keepFile(slot, text, filename, savedAt) {
+  return openDB(FILE_DB, FILE_STORE).then(function (db) {
+    return new Promise(function (resolve, reject) {
+      var tx = db.transaction(FILE_STORE, "readwrite");
+      tx.objectStore(FILE_STORE).put({ text: text, filename: filename, savedAt: savedAt }, slot);
+      tx.oncomplete = function () { resolve(); };
+      tx.onerror = function (e) { reject(e.target.error); };
+    });
+  });
+}
+
+// Every answer kept in the browser, into `answers` and `arrivedAt`
+// (afresh - the trainer may have added some since).
+function readKept() {
+  return new Promise(function (resolve, reject) {
+    var store = answersDB.transaction(SAVED_STORE, "readonly").objectStore(SAVED_STORE);
+    // (the keys and the answers come back in the same order)
+    var keysReq = store.getAllKeys(), valuesReq = store.getAll();
+    valuesReq.onsuccess = function () {
+      var keys = keysReq.result || [], values = valuesReq.result || [];
+      answers = new Map();
+      arrivedAt = new Map();
+      for (var i = 0; i < keys.length; i++) {
+        var v = values[i];
+        var text = v && typeof v.text === "string" ? parseAnswerText(v.text) : null;
+        if (!text) continue;
+        answers.set(keys[i], text);
+        arrivedAt.set(keys[i], typeof v.at === "number" ? v.at : -1);
+      }
+      resolve();
+    };
+    valuesReq.onerror = function (e) { reject(e.target.error); };
+  });
+}
+
+// Puts answers in the browser's copy, in one go: [[key, text, at]],
+// as explorer.js does - `at` now for one from Lichess (so it counts
+// as "not saved yet"), -1 for one from a data file.
+function keepAnswers(list) {
+  return new Promise(function (resolve, reject) {
+    var tx = answersDB.transaction(SAVED_STORE, "readwrite");
+    var store = tx.objectStore(SAVED_STORE);
+    list.forEach(function (item) { store.put({ text: item[1], at: item[2] }, item[0]); });
+    tx.oncomplete = function () {
+      list.forEach(function (item) {
+        answers.set(item[0], item[1]);
+        if (item[2] >= 0) arrivedAt.set(item[0], item[2]);
+        else arrivedAt.delete(item[0]);
+      });
+      resolve();
+    };
+    tx.onerror = function (e) { e.preventDefault(); reject(tx.error || e.target.error); };
+    tx.onabort = function () { reject(tx.error); };
+  });
+}
+
+/*==================================================================
+ * [#6] THE TOP ROW - the Token button, then the three Load buttons.
+ *
+ * TOKEN - the Lichess token: a free personal API token, made at
+ * lichess.org > Preferences > API access tokens with no boxes ticked.
+ * Since 2026 Lichess's explorer only answers with one. It's saved in
+ * the trainer's settings ("explorerToken", [#3]), so Start uses it
+ * here, and the trainer's explorer and background collection read it
+ * from there too (explorer.js [#6]). Each browser keeps its own, so
+ * each one needs it pasted once.
+ * Tapping Token opens the iPad's own pop-up to paste it in - nothing
+ * on the page moves. With a token saved already, the same pop-up
+ * replaces it; left empty, it asks whether to remove it. Cancel
+ * changes nothing. Under the button: "Lichess token" and "Saved
+ * …k3Ft" (its last 4 characters, to tell tokens apart), or "None
+ * yet" in red.
+ * (A browser that can't show a pop-up - some apps' built-in windows -
+ * answers at once, as if Cancel was tapped: then the log says to
+ * open this page in Safari.)
+ *
+ * THE LOAD BUTTONS - the Openings, Puzzles and Explorer buttons
+ * share one hidden file picker. Each file's first line says what it
+ * is, so a file picked with the wrong button is refused, and the
+ * button says which one it goes with. A file that can't be used
+ * changes nothing.
+ *   openings - checked (an openings file, with chapters) and kept
+ *              for the trainer; its chapters are what Start gathers
+ *              for ([#7])
+ *   puzzles  - checked (a puzzles file, with puzzles) and kept for
+ *              the trainer - nothing else here uses it
+ *   explorer - every answer in it goes into the browser, unless the
+ *              browser already has a newer one for that position (as
+ *              the trainer's Load data did). A line that can't be
+ *              read is skipped and counted.
+ * Under each button, three lines: the file loaded, when, and what's
+ * in it:
+ *   openings.jsonl
+ *   Oct 19 9:40 AM
+ *   812 chapters
+ * Explorer's lines are for whichever came last, loading a file or
+ * saving one ([#11]) - either way, when the file and the browser
+ * last matched. (A save never writes a line that can't be read, so
+ * "(N lines couldn't be read)" only ever follows a load.)
+ *==================================================================*/
+// The Token button's status, two lines (see TOKEN, above).
+function showTokenStatus() {
+  var line = el("tokenStatus");
+  line.textContent = "Lichess token\n" + (token ? "Saved …" + token.slice(-4) : "None yet");
+  line.classList.toggle("bad", !token);
+}
+
+// A new token, or null for none: saved, and everything that depends
+// on it shown again.
+function setToken(t) {
+  token = t;
+  saveSetting("explorerToken", t);
+  showTokenStatus();
+  log(t ? "Token saved (…" + t.slice(-4) + ")." : "Token removed.");
+  refreshAll();
+}
+
+// The Token button (see TOKEN, above).
+function askForToken() {
+  var asked = Date.now();
+  var t = window.prompt(token
+    ? "Paste a new Lichess token to replace the one saved (…" + token.slice(-4) + "), " +
+      "or leave it empty to remove it:"
+    : "Paste your Lichess token (lichess.org > Preferences > API access tokens, " +
+      "no boxes ticked):", "");
+  if (t === null) {
+    // (an answer within a moment: no pop-up was shown at all)
+    if (Date.now() - asked < 100) log("This browser can't show the token pop-up - open this page in Safari.", "bad");
+    return;
+  }
+  t = t.trim();
+  if (t) { setToken(t); return; }
+  if (token && window.confirm("Remove the Lichess token from this browser?")) setToken(null);
+}
+
+var SLOT_BUTTON = { openings: "Openings", puzzles: "Puzzles", explorer: "Explorer" };
+var STATUS_ID = { openings: "statusOpenings", puzzles: "statusPuzzles", explorer: "statusData" };
+var pickerSlot = null;
+
+function setStatus(slot, text) { el(STATUS_ID[slot]).textContent = text; }
+
+// A file's header (its first line), or null if it isn't one of the
+// trainer's files at all.
+function readHeader(lines) {
+  var header = null;
+  try { header = JSON.parse(lines[0]); } catch (e) { /* not a .jsonl */ }
+  return header && header.format === "trainer" ? header : null;
+}
+function fileLines(text) {
+  return String(text || "").replace(/^﻿/, "").split(/\r?\n/);
+}
+
+// Why a file can't go in `slot`, or "" if its header says it can.
+function wrongFile(name, header, slot) {
+  if (!header) return name + " isn't one of the trainer's files";
+  if (header.kind === slot) return "";
+  var button = SLOT_BUTTON[header.kind];
+  return name + " is the " + header.kind + " file" + (button ? " - load it with the " + button + " button" : "");
+}
+
+// openings.jsonl -> its chapters (each a line with moves and a
+// side), skipping a line that can't be read.
+function readChapters(lines) {
+  var out = [];
+  for (var i = 1; i < lines.length; i++) {
+    if (!lines[i].trim()) continue;
+    var o = null;
+    try { o = JSON.parse(lines[i]); } catch (e) { continue; }
+    if (o && Array.isArray(o.moves) && (o.side === "w" || o.side === "b")) out.push(o);
+  }
+  return out;
+}
+
+// A Load button's status, three lines: the file, when it was
+// loaded, and what's in it.
+function fileLine(name, at, n, word) {
+  return name + "\n" + formatSavedAt(at) + "\n" + count(n, word);
+}
+
+// openings or puzzles: checked, kept, and - for openings - used.
+// silent: the copy saved last, at start-up (not kept again).
+function useTrainerFile(slot, text, name, at, silent) {
+  var lines = fileLines(text);
+  var problem = wrongFile(name, readHeader(lines), slot);
+  var list = problem ? [] : readChapters(lines);
+  if (!problem && !list.length) problem = name + " has no " + slot + " in it - check it's the right file";
+  if (problem) { setStatus(slot, problem); return Promise.resolve(false); }
+  setStatus(slot, fileLine(name, at, list.length, slot === "openings" ? "chapter" : "puzzle"));
+  if (slot === "openings") useChapters(list);
+  if (silent) return Promise.resolve(true);
+  return keepFile(slot, text, name, at).then(function () {
+    log("Loaded " + name + " for the trainer: " + count(list.length, slot === "openings" ? "chapter" : "puzzle") + ".");
+    return true;
+  }, function (e) {
+    log("Couldn't keep " + name + " for the trainer (" + ((e && e.message) || e) + ").", "bad");
+    return false;
+  });
+}
+
+// explorer_data.jsonl: its answers into the browser.
+function useDataFile(text, name) {
+  var lines = fileLines(text);
+  var problem = wrongFile(name, readHeader(lines), "explorer");
+  if (problem) { setStatus("explorer", problem); return Promise.resolve(); }
+  var bad = 0, good = 0, newer = [];
+  for (var i = 1; i < lines.length; i++) {
+    if (!lines[i].trim()) continue;
+    var o = null;
+    try { o = JSON.parse(lines[i]); } catch (e) { /* counted below */ }
+    var answer = o && typeof o.fen === "string" ? repackAnswer(o) : null;
+    if (!answer) { bad++; continue; }
+    good++;
+    var old = answers.get(o.fen);
+    if (!old || dateOf(answer) > dateOf(old)) newer.push([o.fen, answer, -1]);
+  }
+  return keepAnswers(newer).then(function () {
+    saveSetting("dataFile", { name: name, at: Date.now(), bad: bad, count: good });
+    showDataFileStatus();
+    if (good) { emptyAtStart = false; clearSaveQuestion(); }
+    log("Loaded " + name + ": " + count(good, "position") + ", " +
+        formatNumber(newer.length) + " newer than the browser's" +
+        (bad ? " (" + count(bad, "line") + " couldn't be read)" : "") + ".");
+    refreshAll();
+  }, function (e) {
+    setStatus("explorer", "The browser won't keep the positions (" + ((e && e.message) || e) + ")");
+  });
+}
+
+// The Explorer button's status: the data file last loaded or saved
+// ("dataFile" in the settings - or, from before saves counted too,
+// "dataLoaded").
+function showDataFileStatus() {
+  var s = loadSettings(), f = s.dataFile || s.dataLoaded;
+  if (!f || !f.name) { setStatus("explorer", "No file loaded yet"); return; }
+  var text = f.name + "\n" + formatSavedAt(f.at);
+  if (f.count) text += "\n" + count(f.count, "position");
+  if (f.bad) text += "\n(" + count(f.bad, "line") + " couldn't be read)";
+  setStatus("explorer", text);
+}
+
+function wireLoadButtons() {
+  var picker = el("picker");
+  [["loadOpenings", "openings"], ["loadPuzzles", "puzzles"], ["loadData", "explorer"]]
+    .forEach(function (b) {
+      el(b[0]).addEventListener("click", function () { pickerSlot = b[1]; picker.click(); });
+    });
+  picker.addEventListener("change", function () {
+    var file = picker.files[0], slot = pickerSlot;
+    picker.value = ""; // (so picking the same file again still works)
+    if (!file || running) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      if (slot === "explorer") useDataFile(reader.result, file.name);
+      else useTrainerFile(slot, reader.result, file.name, Date.now(), false);
+    };
+    reader.onerror = function () { setStatus(slot, "Could not read that file"); };
+    reader.readAsText(file);
+  });
+}
+
+// The top row's buttons but Save - greyed out while Start runs.
+function setLoadButtons(on) {
+  ["tokenButton", "loadOpenings", "loadPuzzles", "loadData"].forEach(function (id) { el(id).disabled = !on; });
+}
+
+/*==================================================================
+ * [#7] THE CHAPTERS - the scope dropdown (everything, or one study)
+ * and each scope's positions: every position of every line - both
+ * sides, the one after the last move too, not a game-over one
+ * (explorer.js [#3]) - each position once, in chapter order. Worked
+ * out once per scope per openings file (it replays every chapter).
+ *==================================================================*/
+function useChapters(list) {
+  chapters = list;
+  scopePositions = new Map();
+  var picked = scopes.length ? currentScope().id : "all";
+  scopes = [{ id: "all", label: "Everything - " + count(chapters.length, "chapter"), list: chapters }];
+  var groups = new Map();
+  chapters.forEach(function (ch) {
+    var id = ch.side + "\u0000" + (ch.study || "");
+    if (!groups.has(id)) groups.set(id, { id: id, side: ch.side, study: ch.study || "Untitled study", list: [] });
+    groups.get(id).list.push(ch);
+  });
+  // like the Library: White's studies A-Z, then Black's
+  Array.from(groups.values()).sort(function (a, b) {
+    if (a.side !== b.side) return a.side === "w" ? -1 : 1;
+    return a.study.localeCompare(b.study);
+  }).forEach(function (g) {
+    scopes.push({
+      id: g.id,
+      label: (g.side === "w" ? "White" : "Black") + " - " + g.study + " (" + g.list.length + ")",
+      list: g.list
+    });
+  });
+  var sel = el("scope");
+  sel.innerHTML = "";
+  scopes.forEach(function (s, i) {
+    var opt = document.createElement("option");
+    opt.value = i;
+    opt.textContent = s.label;
+    if (s.id === picked) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  sel.disabled = running;
+  refreshAll();
+}
+
+function currentScope() { return scopes[+el("scope").value] || scopes[0]; }
+
+// [{ key, ci }] - ci: the first chapter (in the scope's list) the
+// position is in.
+function positionsOf(scope) {
+  if (scopePositions.has(scope.id)) return scopePositions.get(scope.id);
+  var seen = new Set(), out = [];
+  scope.list.forEach(function (ch, ci) {
+    var pos = new RULES.Position(ch.fen || undefined);
+    for (var i = 0; i <= ch.moves.length; i++) {
+      var key = positionKey(pos);
+      if (!seen.has(key)) {
+        seen.add(key);
+        if (!pos.gameEnd()) out.push({ key: key, ci: ci });
+      }
+      if (i < ch.moves.length) {
+        var m = pos.findUci(ch.moves[i].uci);
+        if (!m) break; // (can't happen - the build checked every move)
+        pos.apply(m);
+      }
+    }
+  });
+  scopePositions.set(scope.id, out);
+  return out;
+}
+
+/*==================================================================
+ * [#8] THE AGE TABLE - one strip of boxes: the picked chapters'
+ * positions, by how old their answer is: Missing (none yet), then
+ * the pools of AGE_POOLS ([#1]): 0-90, 90-180, 180-270 and 270-365
+ * days, and over 365 - stale, asked for again by Start. Missing and
+ * over 365, when there are any, are in red.
+ * Redrawn as answers come in.
+ *==================================================================*/
+function renderAges() {
+  var strip = el("ages");
+  strip.innerHTML = "";
+  if (!chapters.length) return;
+  var counts = [0, 0, 0, 0, 0, 0]; // missing, the four pools, stale
+  var list = positionsOf(currentScope());
+  list.forEach(function (p) {
+    var text = answers.get(p.key);
+    if (!text) { counts[0]++; return; }
+    var age = ageInDays(text), i = 0;
+    while (i < AGE_POOLS.length && age > AGE_POOLS[i]) i++;
+    counts[i + 1]++;
+  });
+  var names = ["Missing"], from = 0;
+  AGE_POOLS.forEach(function (to) { names.push(from + "–" + to + " days"); from = to; });
+  names.push("over " + from + " days");
+  names.forEach(function (name, i) {
+    addAgeBox(strip, name, counts[i], (i === 0 || i === names.length - 1) && counts[i]);
+  });
+}
+// One box of the strip: its name, and its count under it.
+function addAgeBox(strip, name, n, due) {
+  var box = document.createElement("div");
+  if (due) box.className = "due";
+  var label = document.createElement("span");
+  label.className = "name";
+  label.textContent = name;
+  box.appendChild(label);
+  box.appendChild(document.createTextNode(formatNumber(n)));
+  strip.appendChild(box);
+}
+
+/*==================================================================
+ * [#9] THE PLAN - what Start asks Lichess for, in this order:
+ *   1. every position of the picked chapters with no answer, or one
+ *      over a year old - in chapter order
+ *   2. then "Refresh early" more ([#1], EARLY_CHOICES): the ones
+ *      with the oldest answers, oldest first - so the answers' dates
+ *      spread out over the year, and never all go stale at once.
+ *      The lines you study in the trainer are kept fresh there
+ *      anyway (explorer.js [#10]: anything over a month old is asked
+ *      again while the chapter's open), so this is for the rest.
+ *      As a guide: about 45 a day would refresh 16,000 positions in
+ *      a year - 50 for a daily run (3 min), 300 for a weekly one
+ *      (15 min) - and less is needed the more you study.
+ *==================================================================*/
+function earlyCount() { return +el("early").value || 0; }
+
+function buildPlan() {
+  var list = positionsOf(currentScope());
+  var needed = [], rest = [];
+  list.forEach(function (p, i) {
+    if (!isFresh(p.key)) needed.push({ key: p.key, ci: p.ci });
+    else rest.push({ key: p.key, ci: p.ci, date: dateOf(answers.get(p.key)), i: i });
+  });
+  rest.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : a.i - b.i; });
+  var early = rest.slice(0, earlyCount()).map(function (p) { return { key: p.key, ci: p.ci, early: true }; });
+  return { needed: needed.length, early: early.length, list: needed.concat(early) };
+}
+
+// What Start would do, before it's tapped - or why it can't be
+// tapped yet (no openings file, no token).
+function showPlanSize() {
+  if (running) return;
+  var status = el("status");
+  status.className = "";
+  el("go").disabled = true;
+  el("fill").style.width = "0%";
+  if (!chapters.length) {
+    status.textContent = "No openings file yet - tap Openings and pick openings.jsonl.";
+    return;
+  }
+  if (!token) {
+    status.className = "bad";
+    status.textContent = "No Lichess token in this browser yet - tap Token (top left) and paste one.";
+    return;
+  }
+  var plan = buildPlan();
+  var mins = plan.list.length * (DELAY_MS + 400) / 60000;
+  if (!plan.list.length) {
+    el("fill").style.width = "100%";
+    status.textContent = "Everything here is collected already.";
+    return;
+  }
+  status.textContent = (plan.needed
+    ? count(plan.needed, "position") + " to ask for" +
+      (plan.early ? ", then " + plan.early + " early refreshes" : "")
+    : "Everything here is collected - Start refreshes the " + plan.early + " oldest") +
+    " - about " + formatMinutes(mins);
+  el("go").disabled = false;
+}
+
+/*==================================================================
+ * [#10] THE RUN - one request at a time, the same request as
+ * explorer.js [#5], DELAY_MS apart. Stop ends it after the request
+ * being asked; a refused token or a full browser ends it too.
+ *==================================================================*/
+function askOnce(key) {
+  var url = EXPLORER_URL +
+    "?variant=standard" +
+    "&fen=" + encodeURIComponent(key + " 0 1") +
+    "&speeds=" + EXPLORER_SPEEDS.join(",") +
+    "&ratings=" + EXPLORER_RATINGS.join(",") +
+    "&moves=" + EXPLORER_MOVES +
+    "&topGames=0&recentGames=0";
+  return fetch(url, { headers: { "Authorization": "Bearer " + token, "Accept": "application/json" } })
+    .then(function (r) {
+      if (r.status === 429) return { rateLimited: true };
+      if (r.status === 401 || r.status === 403) return { badToken: true };
+      if (r.status >= 500) return { retry: true, msg: "Lichess couldn't answer (HTTP " + r.status + ")" };
+      if (!r.ok) return { msg: "HTTP " + r.status };
+      return r.json().then(function (data) {
+        var a = readAnswer(data);
+        return a ? { ok: true, answer: a } : { msg: "Lichess sent something that isn't explorer data" };
+      }, function () { return { msg: "Lichess sent something that isn't explorer data" }; });
+    }, function () {
+      return { retry: true, msg: "Couldn't reach Lichess" };
+    });
+}
+
+// Waits ms, but gives up early once Stop is tapped.
+function sleep(ms) {
+  return new Promise(function (resolve) {
+    var until = Date.now() + ms;
+    (function tick() {
+      if (stopAsked || Date.now() >= until) resolve();
+      else setTimeout(tick, Math.min(250, until - Date.now()));
+    })();
+  });
+}
+
+// "ok", "failed", "stopped" or "fatal" (a refused token, storage
+// full).
+async function gatherOne(key) {
+  var tries = 0;
+  for (;;) {
+    if (stopAsked) return "stopped";
+    var r = await askOnce(key);
+    if (r.ok) {
+      try { await keepAnswers([[key, packAnswer(r.answer, todayString()), Date.now()]]); }
+      catch (e) {
+        log("The browser won't keep any more (" + ((e && e.message) || e) + ") - stopped.", "bad");
+        return "fatal";
+      }
+      return "ok";
+    }
+    if (r.rateLimited) {
+      log("Lichess asked for a pause - waiting a minute.", "bad");
+      await sleep(RATE_LIMIT_MS);
+      continue;
+    }
+    if (r.badToken) {
+      log("Lichess turned down the token. Make a new one (no permissions needed) " +
+          "and paste it with Token.", "bad");
+      return "fatal";
+    }
+    if (r.retry && ++tries <= NET_RETRIES) {
+      log(r.msg + " - trying again in " + NET_RETRY_MS / 1000 + " s (" + tries + "/" + NET_RETRIES + ").", "bad");
+      await sleep(NET_RETRY_MS);
+      continue;
+    }
+    log(r.msg + " - skipped " + key, "bad");
+    return "failed";
+  }
+}
+
+async function run() {
+  if (!token || !chapters.length) return;
+  var scope = currentScope();
+  var plan = buildPlan();
+  if (!plan.list.length) { showPlanSize(); return; }
+  running = true;
+  stopAsked = false;
+  setRunningUI(true);
+  keepAwake();
+  log("Started: " + scope.label + " - " + count(plan.needed, "position") + " to ask for" +
+      (plan.early ? ", " + plan.early + " early refreshes" : "") + ".");
+  var done = 0, failed = 0, started = Date.now(), end = "done";
+  for (var i = 0; i < plan.list.length; i++) {
+    var item = plan.list[i], ch = scope.list[item.ci];
+    el("chapter").textContent = (item.early ? "Refreshing early · " : "") +
+      "Chapter " + (item.ci + 1) + "/" + scope.list.length + " · " +
+      (ch.study || "") + ": " + (ch.chapter || "");
+    var outcome = await gatherOne(item.key);
+    if (outcome === "stopped") { end = "stopped"; break; }
+    if (outcome === "fatal") { end = "fatal"; break; }
+    if (outcome === "ok") done++; else failed++;
+    showProgress(i + 1, plan.list.length, failed, started);
+    renderAges();
+    showDataStatus();
+    if (i < plan.list.length - 1) await sleep(DELAY_MS);
+    if (stopAsked) { end = "stopped"; break; }
+  }
+  running = false;
+  releaseWake();
+  el("chapter").textContent = "";
+  var summary = count(done, "position") + " gathered" + (failed ? ", " + failed + " skipped" : "");
+  if (end === "stopped") log("Stopped: " + summary + ". Tap Start to carry on - nothing is lost.");
+  else if (end === "fatal") log("Stopped: " + summary + ".", "bad");
+  else {
+    log("Done: " + summary + "." + (failed ? " Tap Start again to retry the skipped ones." : ""), "ok");
+    if (done) log("Now tap Save.", "ok");
+  }
+  setRunningUI(false);
+  refreshAll();
+}
+
+function showProgress(n, total, failed, started) {
+  el("fill").style.width = (n / total * 100) + "%";
+  var left = (Date.now() - started) / n * (total - n) / 60000;
+  el("status").textContent = n + " / " + total + " positions" +
+    (failed ? " · " + failed + " skipped" : "") +
+    (n < total ? " · about " + formatMinutes(left) + " left" : "");
+}
+
+function setRunningUI(on) {
+  var go = el("go");
+  go.textContent = on ? "Stop" : "Start";
+  go.classList.toggle("stop", on);
+  go.disabled = false;
+  el("scope").disabled = on || !chapters.length;
+  el("early").disabled = on;
+  setLoadButtons(!on);
+}
+
+// Keeps the iPad's screen on while it runs - timers stop while the
+// page is hidden or the screen is locked (nothing is lost, it just
+// waits). Asked for again when the page comes back into view.
+async function keepAwake() {
+  if (!("wakeLock" in navigator)) {
+    log("This browser can't keep the screen on - set Auto-Lock to Never while this runs.");
+    return;
+  }
+  try { wakeLock = await navigator.wakeLock.request("screen"); }
+  catch (e) { log("Couldn't keep the screen on - set Auto-Lock to Never while this runs."); }
+}
+function releaseWake() {
+  if (wakeLock) { try { wakeLock.release(); } catch (e) {} }
+  wakeLock = null;
+}
+
+/*==================================================================
+ * [#11] SAVE DATA - explorer_data.jsonl, line for line what the
+ * trainer's Save used to write: the header, then every answer
+ * kept in the browser, sorted by position - so a position is in the
+ * same place in every save, and two saves line up when compared.
+ *   {"format":"trainer","kind":"explorer","saved":"2026-10-19",
+ *    "database":"lichess","speeds":[...],"ratings":[...],
+ *    "maxMoves":12}
+ *   {"fen":"<position>","date":"2026-10-06","w":1520,"d":130,
+ *    "b":1410,"moves":[["g8f6","Nf6",812,70,740],...]}
+ * (The README lists every field.) Can be tapped any time, during a
+ * run too - it saves what's in so far.
+ * Where the browser can share files (Safari on the iPad), it opens
+ * the share sheet: Save to Files saves it straight into the folder
+ * you pick. Otherwise - or if the share sheet fails - it's
+ * downloaded. Closing the share sheet without saving saves nothing.
+ * The file is built straight from what's in memory, with no waiting:
+ * the share sheet only opens straight after a tap.
+ * ASKS FIRST - with a second tap - when saving could replace a good
+ * file with a poorer one: the browser had no answers when the page
+ * opened (its data was cleared - load explorer_data.jsonl first),
+ * or it has fewer than the last save wrote.
+ * Under the button, one line: "312 not saved yet" or "all saved".
+ * "Not saved yet" are the answers that came in from Lichess (here
+ * or in the trainer) since the last save. The file itself - its
+ * name, when it was saved and how many positions it has - goes
+ * under Explorer ([#6]), as after a load. (The browser's own count
+ * isn't shown: a newer answer for a position already kept doesn't
+ * change it, so it says nothing the line above doesn't.)
+ * (The page can't see what's done in the share sheet: a share that
+ * finishes counts as saved, wherever the file went.)
+ *==================================================================*/
+function dataFileText() {
+  var out = [JSON.stringify({
+    format: "trainer", kind: "explorer", saved: todayString(),
+    database: "lichess", speeds: EXPLORER_SPEEDS, ratings: EXPLORER_RATINGS,
+    maxMoves: EXPLORER_MOVES
+  })];
+  // each line is the answer's own text (always {"date":...}) with
+  // "fen" put in front of its fields
+  Array.from(answers.keys()).sort().forEach(function (key) {
+    out.push('{"fen":' + JSON.stringify(key) + "," + answers.get(key).slice(1));
+  });
+  return out.join("\n") + "\n";
+}
+
+// Why saving now might be a mistake, or "".
+function saveDoubt() {
+  var n = answers.size, last = loadSettings().dataSavedCount || 0;
+  if (emptyAtStart) {
+    return "This browser had no Lichess data when the page opened, so this would save only " +
+      count(n, "position") + ". If you have an explorer_data.jsonl, tap Explorer first. " +
+      "Tap Save again to save anyway.";
+  }
+  if (n < last) {
+    return "That's fewer than the " + formatNumber(last) + " your last save wrote. " +
+      "Tap Save again to save anyway.";
+  }
+  return "";
+}
+
+function saveDataFile() {
+  if (!answers.size) return;
+  var doubt = saveDoubt();
+  if (doubt && !saveAsked) {
+    saveAsked = true;
+    el("saveWarn").textContent = doubt;
+    el("saveTitle").textContent = "Save anyway";
+    return;
+  }
+  var text = dataFileText(), n = answers.size, file = null;
+  try { file = new File([text], DATA_FILE, { type: "text/plain" }); } catch (e) { /* no File */ }
+  var canShare = false;
+  try { canShare = !!(file && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })); }
+  catch (e) { canShare = false; }
+  if (!canShare) { downloadData(text, n); return; }
+  navigator.share({ files: [file] }).then(function () {
+    markSaved(n);
+  }, function (e) {
+    if (e && e.name === "AbortError") { log("Save closed - nothing saved."); return; }
+    log("The share sheet didn't open (" + ((e && e.message) || e) + ") - downloading instead.", "bad");
+    downloadData(text, n);
+  });
+}
+
+// "application/octet-stream" so Safari downloads it rather than
+// showing it as a page
+function downloadData(text, n) {
+  var blob = new Blob([text], { type: "application/octet-stream" });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href = url;
+  a.download = DATA_FILE;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
+  markSaved(n);
+}
+
+// Back to a plain Save button, with no question showing.
+function clearSaveQuestion() {
+  saveAsked = false;
+  el("saveWarn").textContent = "";
+  el("saveTitle").textContent = "Save";
+}
+
+function markSaved(n) {
+  var now = Date.now();
+  saveSetting("dataSavedAt", now);
+  saveSetting("dataSavedCount", n);
+  saveSetting("dataFile", { name: DATA_FILE, at: now, bad: 0, count: n });
+  emptyAtStart = false;
+  clearSaveQuestion();
+  log("Saved " + DATA_FILE + " - " + count(n, "position") + ".", "ok");
+  showDataFileStatus();
+  showDataStatus();
+}
+
+// Save's line, and the button (greyed out with nothing to save).
+function showDataStatus() {
+  var line = el("saveStatus");
+  el("saveData").disabled = !answers.size;
+  if (!answers.size) { line.textContent = "Nothing to save yet"; return; }
+  var since = loadSettings().dataSavedAt || 0, unsaved = 0;
+  arrivedAt.forEach(function (at) { if (at > since) unsaved++; });
+  line.textContent = unsaved ? formatNumber(unsaved) + " not saved yet" : "all saved";
+}
+
+// The warning under the Load buttons: no answers in the browser.
+function showEmptyWarning() {
+  el("emptyWarn").textContent = answers.size ? "" :
+    "There's no Lichess data in this browser. If you have an explorer_data.jsonl, " +
+    "tap Explorer first - otherwise Start asks Lichess for every position again " +
+    "(about 3 seconds each).";
+}
+
+/*==================================================================
+ * [#12] START-UP - the token, the answers kept, then the files
+ * saved last. Only rules.js missing or the answers unreadable stop
+ * the page; with no openings file or no token, the status line says
+ * what to do, and the rest still works. Coming back on screen (from
+ * the trainer, say), the answers are read again - and the token, in
+ * case another copy of this page changed it.
+ *==================================================================*/
+function fail(text) {
+  el("status").textContent = text;
+  el("status").className = "bad";
+}
+
+// Everything that depends on the answers or the picked chapters.
+function refreshAll() {
+  renderAges();
+  showPlanSize();
+  showDataStatus();
+  showEmptyWarning();
+}
+
+function fillEarlyChoices() {
+  var sel = el("early"), saved = loadSettings().dataEarlyRefresh;
+  var pick = EARLY_CHOICES.indexOf(saved) >= 0 ? saved : EARLY_DEFAULT;
+  EARLY_CHOICES.forEach(function (n) {
+    var opt = document.createElement("option");
+    opt.value = n;
+    opt.textContent = n ? n + " oldest" : "none";
+    if (n === pick) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  sel.addEventListener("change", function () {
+    saveSetting("dataEarlyRefresh", earlyCount());
+    showPlanSize();
+  });
+}
+
+async function boot() {
+  if (typeof RULES === "undefined") { fail("rules.js is missing - keep data.html in the trainer's folder."); return; }
+  token = loadSettings().explorerToken || null;
+  try {
+    answersDB = await openDB(SAVED_DB, SAVED_STORE);
+    await readKept();
+  } catch (e) {
+    fail("Couldn't open the trainer's saved Lichess data: " + ((e && e.message) || e));
+    return;
+  }
+  // (nothing logged: the boxes under Explorer and Save, and the age
+  // table, already say what's in the browser)
+  emptyAtStart = !answers.size;
+  fillEarlyChoices();
+  showTokenStatus();
+  el("tokenButton").addEventListener("click", askForToken);
+  wireLoadButtons();
+  el("scope").addEventListener("change", function () { renderAges(); showPlanSize(); });
+  el("go").addEventListener("click", function () {
+    if (running) { stopAsked = true; el("go").disabled = true; el("go").textContent = "Stopping…"; }
+    else run();
+  });
+  el("saveData").addEventListener("click", saveDataFile);
+  showDataFileStatus();
+  for (var slot of ["openings", "puzzles"]) {
+    try {
+      var rec = await readSavedFile(slot);
+      if (rec && rec.text) await useTrainerFile(slot, rec.text, rec.filename || slot + ".jsonl", rec.savedAt || Date.now(), true);
+      else setStatus(slot, "No file loaded yet");
+    } catch (e) {
+      setStatus(slot, "Couldn't read the saved file - load it again");
+    }
+  }
+  setLoadButtons(true);
+  el("early").disabled = false;
+  el("scope").disabled = !chapters.length;
+  refreshAll();
+}
+
+document.addEventListener("visibilitychange", function () {
+  if (document.hidden) return;
+  if (running) { keepAwake(); return; }
+  if (!answersDB) return;
+  token = loadSettings().explorerToken || null;
+  showTokenStatus();
+  readKept().then(refreshAll, function () { /* keeps what it had */ });
+});
+
+boot();
+})();
+</script>
+</body>
+</html>
