@@ -3101,6 +3101,12 @@ function boot() {
     ["moveListBox", "engineLines", "explorerBox"].forEach(function (id) {
       new ResizeObserver(syncNotesHeight).observe(document.getElementById(id));
     });
+    // and whenever the page grid itself changes size - the layout
+    // switching between side-by-side and stacked while the board
+    // stays the same size. Safari's sidebar does that: opening it
+    // stacks the page, closing it puts the column back, and Safari
+    // doesn't always say the window was resized.
+    new ResizeObserver(syncNotesHeight).observe(document.querySelector(".layout"));
   }
   // Keep the "more below" chevron in sync as the user scrolls the
   // comment box themselves (fades out once they reach the bottom).
