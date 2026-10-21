@@ -60,22 +60,24 @@ so you only load a file again after a rebuild (or a browser reset).
 
 ### The trainer page — keep all of these in one folder
 
-All but one: `rules.js` is shared with other projects, so there's
-just one copy of it, in a folder of its own called `shared`, next
-to the trainer's folder:
+All but two: `rules.js` and `pieces.js` are shared with other
+projects, so there's just one copy of each, in a folder of its own
+called `shared`, next to the trainer's folder:
 
 ```
 (the folder that holds them all)
   shared/rules.js
+  shared/pieces.js
   trainer/        (everything else below)
   (any other projects)
 ```
 
-Both pages load it as `../shared/rules.js` (`..` = up one folder).
-So wherever the trainer is run or put online, `shared` has to sit
+Both pages load `rules.js` as `../shared/rules.js` (`..` = up one
+folder), and the trainer page loads `pieces.js` the same way. So
+wherever the trainer is run or put online, `shared` has to sit
 next to it, and be reachable from it: when running it locally, open
 or serve the folder that holds them all, not `trainer` itself. A
-change to `rules.js` reaches every project at once, so try each one
+change to either file reaches every project at once, so try each one
 after changing it.
 
 | File | What it is |
@@ -86,7 +88,7 @@ after changing it.
 | `errors.js` | Error messages. Anything wrong with the page itself (a missing file, a script error, a mistyped CSS color) shows **in the comment box**, and the page **stops** until it's reloaded. (Stockfish not running, or Lichess not answering, isn't a page error.) |
 | `rules.js` | **In `../shared/`, not this folder** (see above). Chess rules: legal moves, move names (SAN), check and mate, how the game ends at a position, and positions as FENs - by python-chess's own rules, so the trainer and the build always agree. |
 | `filter.js` | Reads the two `.jsonl` files and builds the lists: spaced repetition, today's random openings and puzzles, and the Library's. |
-| `pieces.js` | Piece artwork (the cburnett set). Swap the 12 drawings to change the piece set. |
+| `pieces.js` | **In `../shared/`, not this folder** (see above). Piece artwork (the cburnett set). Swap the 12 drawings to change the piece set - in every project at once. |
 | `board.js` | The chessboard: drawing it (pieces, badges, arrows and circles, coordinates), tapping and dragging pieces, piece slides, the resize grip. |
 | `icons.js` | The small interface icons. |
 | `NotoSans.ttf` | The page font. Without it the page falls back to system fonts. |
@@ -101,10 +103,10 @@ after changing it.
 
 The trainer stops with an error if any of its files but the Stockfish
 ones, the three license files and `index.html` is missing - or if
-`rules.js` isn't in `../shared/`. When the page is opened from a
-local server, the engine saves its own copy of the Stockfish files in
-the browser while that server is running, so it keeps working if the
-server stops.
+`rules.js` or `pieces.js` isn't in `../shared/`. When the page is
+opened from a local server, the engine saves its own copy of the
+Stockfish files in the browser while that server is running, so it
+keeps working if the server stops.
 
 ### The scripts (Python 3 + python-chess: `pip install chess`)
 
@@ -269,8 +271,9 @@ pruned copy is a smaller backup.
 
 That's on purpose: every error stops the page. The message in the
 comment box says what's wrong - usually a file missing from the folder
-(or `rules.js` from `../shared/`, or `trainer` opened on its own
-instead of the folder that holds it and `shared`), or a line of a
+(or `rules.js` or `pieces.js` from `../shared/`, or `trainer` opened
+on its own instead of the folder that holds it and `shared`), or a
+line of a
 `.jsonl` file that can't be read
 (rebuild the file). Fix
 it, then reload the page.

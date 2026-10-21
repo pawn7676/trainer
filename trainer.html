@@ -13,7 +13,8 @@
      it's in.
 
      THE FILES - keep them all in the same folder as this page,
-     except rules.js, which is in the shared folder (below):
+     except rules.js and pieces.js, which are in the shared folder
+     (below):
       trainer.html ................... this page: the markup, and the
                                        chapters and gameplay below
       trainer.css .................... how the page looks; every
@@ -30,7 +31,10 @@
       filter.js ...................... reads the two .jsonl files and
                                        builds the SR / random / puzzle
                                        / Library lists
-      pieces.js ...................... piece artwork
+      ../shared/pieces.js ............ piece artwork. NOT in this
+                                       folder: it's in "shared",
+                                       like rules.js (see the top
+                                       of pieces.js)
       board.js ....................... the board: drawing, taps and
                                        drags, piece slides, resizing
       icons.js ....................... UI icons (data-icon="...")
@@ -324,8 +328,10 @@ if (typeof pageWarn === "undefined") {
 <script src="filter.js"></script>
 
 <!-- Piece artwork (cburnett SVG set). Must load before trainer
-     script, since it defines the global PIECE_SVG object. -->
-<script src="pieces.js"></script>
+     script, since it defines the global PIECE_SVG object. Like
+     rules.js, it lives in the "shared" folder next to this
+     page's folder, so every project uses the same copy. -->
+<script src="../shared/pieces.js"></script>
 
 <!-- The board: drawing, taps and drags, piece slides, resize.
      Must load before trainer script, since it defines the

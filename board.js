@@ -475,7 +475,8 @@ var bakeRepaint = null;
 var pieceBakeGen = 0;
 function bakePieces() {
   if (typeof PIECE_SVG === "undefined") {
-    pageWarn("pieces.js is missing - no piece art (keep it in the same folder as this page)");
+    pageWarn("pieces.js is missing - no piece art (keep it in the \"shared\" folder, " +
+      "next to this page's folder)");
     return;
   }
   var gen = ++pieceBakeGen;
