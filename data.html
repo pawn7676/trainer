@@ -41,8 +41,11 @@
        - the Lichess token - saved here ([#6]), and read by the
          trainer (explorer.js [#6])
      So it has to run in the SAME browser and from the SAME address
-     as the trainer (the Code app's window and full Safari each keep
-     their own storage), from the same folder (it uses rules.js).
+     as the trainer (each browser, and each app with a browser
+     window of its own, keeps its own storage), from the same
+     folder. It uses rules.js,
+     from the "shared" folder next to the trainer's folder, like
+     the trainer does (trainer.html, the script tags).
      The trainer reads the files when it opens - load new ones here
      first, or reload the trainer afterwards.
 
@@ -184,7 +187,9 @@ button:disabled, select:disabled { opacity: .45; }
   <div id="log"></div>
 </main>
 
-<script src="rules.js"></script>
+<!-- rules.js is in the "shared" folder, next to this page's folder
+     (".." = up one folder) - one copy for every project -->
+<script src="../shared/rules.js"></script>
 <script>
 (function () {
 "use strict";
@@ -204,7 +209,7 @@ var EXPLORER_KEEP_DAYS = 365;
 // a minute's pause, which ends up slower overall.
 var DELAY_MS = 3000;
 var RATE_LIMIT_MS = 60000;
-// A request that never reaches Lichess (a wifi blip, the iPad
+// A request that never reaches Lichess (a wifi blip, the device
 // asleep), or that Lichess can't answer just then (HTTP 5xx), is
 // tried again after NET_RETRY_MS, up to NET_RETRIES times, then
 // skipped - Start again picks it up.
@@ -453,7 +458,7 @@ function keepAnswers(list) {
  * here, and the trainer's explorer and background collection read it
  * from there too (explorer.js [#6]). Each browser keeps its own, so
  * each one needs it pasted once.
- * Tapping Token opens the iPad's own pop-up to paste it in - nothing
+ * Tapping Token opens the browser's own pop-up to paste it in - nothing
  * on the page moves. With a token saved already, the same pop-up
  * replaces it; left empty, it asks whether to remove it. Cancel
  * changes nothing. Under the button: "Lichess token" and "Saved
@@ -953,7 +958,7 @@ function setRunningUI(on) {
   setLoadButtons(!on);
 }
 
-// Keeps the iPad's screen on while it runs - timers stop while the
+// Keeps the screen on while it runs - timers stop while the
 // page is hidden or the screen is locked (nothing is lost, it just
 // waits). Asked for again when the page comes back into view.
 async function keepAwake() {
@@ -1144,7 +1149,11 @@ function fillEarlyChoices() {
 }
 
 async function boot() {
-  if (typeof RULES === "undefined") { fail("rules.js is missing - keep data.html in the trainer's folder."); return; }
+  if (typeof RULES === "undefined") {
+    fail("rules.js is missing - it belongs in the \"shared\" folder, next to the trainer's folder " +
+         "(and data.html in the trainer's folder).");
+    return;
+  }
   token = loadSettings().explorerToken || null;
   try {
     answersDB = await openDB(SAVED_DB, SAVED_STORE);

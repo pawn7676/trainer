@@ -60,13 +60,31 @@ so you only load a file again after a rebuild (or a browser reset).
 
 ### The trainer page — keep all of these in one folder
 
+All but one: `rules.js` is shared with other projects, so there's
+just one copy of it, in a folder of its own called `shared`, next
+to the trainer's folder:
+
+```
+(the folder that holds them all)
+  shared/rules.js
+  trainer/        (everything else below)
+  (any other projects)
+```
+
+Both pages load it as `../shared/rules.js` (`..` = up one folder).
+So wherever the trainer is run or put online, `shared` has to sit
+next to it, and be reachable from it: when running it locally, open
+or serve the folder that holds them all, not `trainer` itself. A
+change to `rules.js` reaches every project at once, so try each one
+after changing it.
+
 | File | What it is |
 |---|---|
 | `trainer.html` | The trainer itself: the file index, the page markup, and the script - which chapter is open, the lists, reading the files from the browser, playing through a chapter, practice, the comment box, the move list, settings, buttons, keys, start-up. |
 | `data.html` | The data page, opened on its own: takes your Lichess token, loads the three `.jsonl` files into the browser for the trainer, shows how old the Lichess data is, gathers what's missing or stale, and saves `explorer_data.jsonl`. |
 | `trainer.css` | Every style on the page. All colors, fonts and sizes are settings near the top (`:root`). |
 | `errors.js` | Error messages. Anything wrong with the page itself (a missing file, a script error, a mistyped CSS color) shows **in the comment box**, and the page **stops** until it's reloaded. (Stockfish not running, or Lichess not answering, isn't a page error.) |
-| `rules.js` | Chess rules: legal moves, move names (SAN), check and mate, how the game ends at a position, and positions as FENs - by python-chess's own rules, so the trainer and the build always agree. |
+| `rules.js` | **In `../shared/`, not this folder** (see above). Chess rules: legal moves, move names (SAN), check and mate, how the game ends at a position, and positions as FENs - by python-chess's own rules, so the trainer and the build always agree. |
 | `filter.js` | Reads the two `.jsonl` files and builds the lists: spaced repetition, today's random openings and puzzles, and the Library's. |
 | `pieces.js` | Piece artwork (the cburnett set). Swap the 12 drawings to change the piece set. |
 | `board.js` | The chessboard: drawing it (pieces, badges, arrows and circles, coordinates), tapping and dragging pieces, piece slides, the resize grip. |
@@ -79,13 +97,14 @@ so you only load a file again after a rebuild (or a browser reset).
 | `LICENSE` | The GNU General Public License, version 3 - the license of the trainer's own code, and of Stockfish. |
 | `CREDITS.md` | Who made what - Stockfish, the pieces, the font, the icons, Lichess, python-chess, chess.js - and their licenses. |
 | `NotoSans-OFL.txt` | The font's license, which has to go wherever `NotoSans.ttf` goes. |
-| `index.html` | For GitHub Pages only: sends the site's short address (`pawn7676.github.io/trainer/`) on to `trainer.html`. Without it, GitHub Pages shows this README there. |
+| `index.html` | Sends the site's short address (the trainer's folder, without `trainer.html` on the end) on to `trainer.html`. Only needed on a web host that would otherwise show this README there. |
 
 The trainer stops with an error if any of its files but the Stockfish
-ones, the three license files and `index.html` is missing. The page is
-opened from the Code app's local server (localhost); the engine saves
-its own copy of the Stockfish files in the browser while that server is
-running, so it keeps working afterwards.
+ones, the three license files and `index.html` is missing - or if
+`rules.js` isn't in `../shared/`. When the page is opened from a
+local server, the engine saves its own copy of the Stockfish files in
+the browser while that server is running, so it keeps working if the
+server stops.
 
 ### The scripts (Python 3 + python-chess: `pip install chess`)
 
@@ -249,8 +268,11 @@ pruned copy is a smaller backup.
 **The trainer shows an error and won't do anything**
 
 That's on purpose: every error stops the page. The message in the
-comment box says what's wrong - usually a file missing from the folder,
-or a line of a `.jsonl` file that can't be read (rebuild the file). Fix
+comment box says what's wrong - usually a file missing from the folder
+(or `rules.js` from `../shared/`, or `trainer` opened on its own
+instead of the folder that holds it and `shared`), or a line of a
+`.jsonl` file that can't be read
+(rebuild the file). Fix
 it, then reload the page.
 
 ---
@@ -276,9 +298,8 @@ the iPad held upright) everything stacks.
   flip it. The **folder** button, at the menu's top right, opens the
   data page in the same tab (where the Lichess token is pasted); Back
   returns to the trainer as you left it - reload it to pick up files
-  you loaded there. It only works where the pages are hosted (GitHub
-  Pages, say): Safari can't load a page from the Code app's server a
-  second time.
+  you loaded there. It may not work from a local server that sends a
+  page only once.
 - **Mode** — the four list modes (see **Choose what to study** below).
 - **`<<` `<` `>` `>>`** — the start, one move back, one forward, the
   end. At the end of a line, `>>` turns blue and becomes **Next**: the
@@ -297,7 +318,7 @@ the iPad held upright) everything stacks.
 
 **Keyboard shortcuts**
 
-With a keyboard on the iPad, these keys do the same as the buttons
+With a keyboard, these keys do the same as the buttons
 and switches. This is the one list of them - every key is wired in
 `trainer.html` [#24], whose comment lists them too; a new key goes in
 both places.
@@ -394,8 +415,8 @@ Where the game is over it just says **Checkmate**, **Stalemate** or
 - **The token:** Lichess only answers with a personal API token. Make
   one at lichess.org › Preferences › API access tokens with **no boxes
   ticked**, and paste it on the data page with **Token**. It's saved
-  in that browser only (the Code app's window and full Safari each
-  need it once), and the trainer picks it up as soon as you come back
+  in that browser only (each browser, and each app with a browser
+  window of its own, needs it once), and the trainer picks it up as soon as you come back
   to it - no reload needed.
 - **Which games:** every time control except ultrabullet, players rated
   1000 and up (`EXPLORER_SPEEDS`, `EXPLORER_RATINGS` in `explorer.js`).

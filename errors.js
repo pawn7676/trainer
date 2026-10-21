@@ -173,7 +173,11 @@ function checkExternalFiles() {
     pageWarn("trainer.css is missing - the page has no styling (keep it in the same folder as this page)");
   }
   if (typeof RULES === "undefined") {
-    pageWarn("rules.js is missing - the trainer can't run without it (keep it in the same folder as this page)");
+    // (rules.js is the one file kept elsewhere: in the "shared"
+    // folder next to the trainer's folder - trainer.html, the
+    // script tags)
+    pageWarn("rules.js is missing - the trainer can't run without it (keep it in the \"shared\" " +
+      "folder, next to the trainer's folder)");
     return false;
   }
   if (typeof FILTER === "undefined") {

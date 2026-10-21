@@ -12,7 +12,8 @@
      "board.js [#6]" - and a bare "[#6]" means a section of the file
      it's in.
 
-     THE FILES - keep them all in the same folder as this page:
+     THE FILES - keep them all in the same folder as this page,
+     except rules.js, which is in the shared folder (below):
       trainer.html ................... this page: the markup, and the
                                        chapters and gameplay below
       trainer.css .................... how the page looks; every
@@ -20,8 +21,12 @@
       errors.js ...................... error messages - every error
                                        stops the page until it's
                                        reloaded
-      rules.js ....................... chess rules: legal moves, SAN,
-                                       check and mate
+      ../shared/rules.js ............. chess rules: legal moves, SAN,
+                                       check and mate. NOT in this
+                                       folder: it's in the folder
+                                       "shared", next to this one -
+                                       one copy for every project
+                                       (see the top of rules.js)
       filter.js ...................... reads the two .jsonl files and
                                        builds the SR / random / puzzle
                                        / Library lists
@@ -57,9 +62,10 @@
                                        Lichess, python-chess), with
                                        their licenses
       NotoSans-OFL.txt ............... the font's license
-      index.html ..................... GitHub Pages only: sends the
-                                       site's short address on to
-                                       this page
+      index.html ..................... sends the site's short
+                                       address on to this page (for
+                                       a web host that would show
+                                       README.md there instead)
 
      THIS FILE'S SECTIONS (in the <script> at the bottom)
      CHAPTERS & FILES - which chapter is on the board
@@ -306,8 +312,10 @@ if (typeof pageWarn === "undefined") {
 </script>
 
 <!-- Chess legal-move engine. Must load before trainer script,
-     since it defines the global RULES object. -->
-<script src="rules.js"></script>
+     since it defines the global RULES object. It lives in the
+     "shared" folder next to this page's folder (".." = up one
+     folder), so every project uses the same copy. -->
+<script src="../shared/rules.js"></script>
 
 <!-- Reading the two .jsonl files + the SR / random / puzzle /
      Library lists.
@@ -572,7 +580,7 @@ function realToday() {
   return d;
 }
 
-// The same day as text, "YYYY-MM-DD" (the iPad's own calendar day) -
+// The same day as text, "YYYY-MM-DD" (the device's own calendar day) -
 // the seed for the daily shuffle (filter.js [#2]), and the date on an
 // explorer answer (explorer.js [#4]).
 function todayString() {
@@ -617,7 +625,7 @@ function updateDateNavUI() {
 // A NEW DAY - the page can stay open for days, but the lists are only
 // built when something asks for them (start-up, the mode button, the
 // SR date, loading a file). So when the page comes back into view
-// (back to the Code app, the iPad woken up) on a different calendar
+// (switched back to, the device woken up) on a different calendar
 // day than the list was built for, it's built again: the random
 // openings and puzzles get the new day's shuffle (filter.js [#2]),
 // and the SR date moves on to today - unless it had been stepped to
@@ -1092,7 +1100,7 @@ function useFile(slot, text, filename) {
  * are kept in the browser, each under its own key
  * (FILE_CACHE_KEYS), as { text, filename, savedAt }. data.html
  * puts them there (its Openings and Puzzles buttons); this page
- * only reads them. The files themselves never leave the iPad.
+ * only reads them. The files themselves never leave the device.
  *==================================================================*/
 var FILE_CACHE_DB = "trainerDB";
 var FILE_CACHE_STORE = "files";
@@ -2599,8 +2607,8 @@ function wireSettingsPanel() {
   });
   // The folder button, on the title's row: the data page, in this tab
   // (DATA_PAGE, [#9]). Back comes back here, as it was left - reload
-  // to pick up files loaded there. (Not from the Code app: Safari
-  // can't load a page from its server a second time.)
+  // to pick up files loaded there. (It may not work from a local
+  // server that sends a page only once.)
   el("btnDataPage").addEventListener("click", function () {
     window.location.href = DATA_PAGE;
   });
@@ -3074,10 +3082,10 @@ function boot() {
   startupLoadFiles();
 
   // engine.js wires the taps on its lines and brings its saved copy
-  // of the Stockfish files up to date straight away, while the Code
-  // app's server is sure to be answering. (Stockfish itself only
-  // loads the first time Engine or Threat is turned on, then stays
-  // loaded.)
+  // of the Stockfish files up to date straight away, while the
+  // server that sent this page is sure to be answering. (Stockfish
+  // itself only loads the first time Engine or Threat is turned on,
+  // then stays loaded.)
   ENGINE.init();
 
   // explorer.js wires its table, and reads the Lichess token and the

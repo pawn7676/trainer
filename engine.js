@@ -60,8 +60,9 @@
  * search had finished, that result shows straight away. Both are
  * always off when the page opens.
  *
- * WHEN STOCKFISH CAN'T RUN - its files aren't in the folder, the Code
- * app's server has stopped and this browser has no saved copy yet
+ * WHEN STOCKFISH CAN'T RUN - its files aren't in the folder, the
+ * server that sent the page has stopped and this browser has no
+ * saved copy yet
  * (see below), or Stockfish fails or doesn't start - Engine and
  * Threat turn themselves off, and why shows in magenta under the
  * move list, where the lines go. The rest of the trainer
@@ -133,20 +134,19 @@
  * The page fetches both files itself and hands the worker
  * in-memory copies (blob: URLs) labelled with the right file types.
  * Stockfish.js only starts if its .wasm arrives labelled
- * "application/wasm", and simple local servers (like the one the Code
- * app runs on localhost) often label it as a generic download, which
- * Safari then refuses to run. The .wasm's location is passed to the
- * worker after the "#" in its URL, which Stockfish.js reads for
- * exactly this purpose.
+ * "application/wasm", and simple local servers often label it as a
+ * generic download, which Safari then refuses to run. The .wasm's
+ * location is passed to the worker after the "#" in its URL, which
+ * Stockfish.js reads for exactly this purpose.
  *
- * The Code app's localhost server stops answering once the
- * Code app is in the background (e.g. with the page open in full
- * Safari). So a copy of the files is saved in this browser's own
- * storage (IndexedDB, like the trainer's file cache) while the server
- * is still up, and that copy is what Stockfish starts from. Each
- * browser keeps its own copy - the Code app's small window and full
- * Safari don't share storage - so each one needs to have loaded the
- * page once while the server was up.
+ * A local server may stop answering while the page is still open
+ * (when the app running it goes into the background, say). So a copy
+ * of the files is saved in this browser's own storage (IndexedDB,
+ * like the trainer's file cache) while the server is still up, and
+ * that copy is what Stockfish starts from. Each browser keeps its
+ * own copy, and so does each app with a browser window of its own,
+ * so each one needs to have loaded the page once while the server
+ * was up.
  *
  * The page itself keeps no copy of the files in memory (with
  * Full that would be 94 MB held for nothing):
@@ -610,8 +610,8 @@ function readEngineFile(name) {
     }).catch(function () {
       throw new Error(status
         ? name + " isn't in the trainer's folder (HTTP " + status + ") - keep it there, name unchanged"
-        : "couldn't reach " + name + " - it isn't in the trainer's folder, or the Code app's server has " +
-          "stopped (open the trainer from the Code app again)");
+        : "couldn't reach " + name + " - it isn't in the trainer's folder, or the server that " +
+          "sent the page has stopped (start it again, then reload the page)");
     });
   });
 }
@@ -1287,7 +1287,7 @@ function playLineTo(row, i) {
 
 // ---- Page hidden --------------------------------------------------
 // The browser says when the page is hidden - another app or tab in
-// front, or the iPad's screen off. A search still running then is
+// front, or the screen off. A search still running then is
 // paused (stopped, with what it found so far kept in the position
 // memory), and picks up again from there when the page is back. A
 // finished search needs nothing - it's already stopped by itself.
@@ -1325,7 +1325,7 @@ function init() {
   wireLineTaps();
   updateEngineUI();
   // Bring the saved copy of the Stockfish files up to date right
-  // away, while the Code app's server is sure to be answering
+  // away, while the server that sent the page is sure to be answering
   // (without keeping them in memory, and without loading Stockfish -
   // that waits for Engine or Threat to be turned on). Nothing is shown
   // if this fails; turning one on tries again and says what went
