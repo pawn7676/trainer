@@ -252,7 +252,7 @@
    page picks the right value by itself - nothing to change between
    the two. Tweak this number if the blur still overlaps. */
 @media (display-mode: standalone) {
-  :root { --top-inset: 24px; }
+  :root { --top-inset: 100px; }
 }
 
 /* ------------------------------------------------------------
