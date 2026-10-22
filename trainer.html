@@ -1012,15 +1012,18 @@ function carryChapterToLibrary() {
 var LICHESS_STUDY_URL = "https://lichess.org/study/";
 
 // The Link button: the open chapter on Lichess, at the move on the
-// board.
+// board - in this same tab (or the web app's own window), like the
+// Settings menu's folder button ([#21]). Back comes back here.
+// (To open it in a new Safari tab instead, even from the web app:
+//   window.open(url.replace(/^https:/, "x-safari-https:"),
+//               "_blank", "noopener");
+// - what it did before.)
 function openChapterLink() {
   var id = chapters[currentChapter] && chapters[currentChapter].id;
   if (!id) return;
   var url = LICHESS_STUDY_URL + id;
   if (currentPly > 0) url += "#" + currentPly;
-  //window.open(url, "_blank", "noopener");
-  // forces a web app to open a new tab in safari
-  window.open(url.replace(/^https:/, "x-safari-https:"), "_blank", "noopener");
+  window.location.href = url;
 }
 
 /*==================================================================
