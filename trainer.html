@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>trainer</title>
+<!-- The icon, for the home screen (and the browser tab).
+     iPadOS rounds the corners itself, so icon.png is a plain
+     opaque 180x180 square. Two tags, because one tag naming
+     both uses is not reliably honoured. iPadOS keeps the icon
+     it saw when the page was added to the Home Screen: to see
+     a new one, add the page again. -->
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="icon" href="icon.png">
 <!-- =================================================================
      INDEX
      =================================================================
@@ -73,6 +81,9 @@
                                        explorer_data.jsonl
       ../shared/NotoSans.ttf ......... the font, loaded by
                                        theme.css
+      icon.png ....................... the home-screen icon (and
+                                       the browser tab's), 180x180
+                                       - optional
       stockfish-19-lite-single.js .... engine (Lite)
       stockfish-19-lite-single.wasm .. engine (Lite), used by the .js
       stockfish-19-single.js ......... engine (Full, optional - only
@@ -148,7 +159,7 @@
 <!-- The home-screen web app: when iPadOS says the page was opened
      from its Home Screen icon (navigator.standalone - false in a
      Safari tab), the page gets the class "web-app", which gives it
-     room for the iPadOS status bar at the top (--top-inset in
+     room for the iPadOS status bar at the top (--top-inset,
      trainer.css [#1]). Here, before the stylesheets, so the room is
      there from the first frame. -->
 <script>
@@ -1034,15 +1045,22 @@ function carryChapterToLibrary() {
 var LICHESS_STUDY_URL = "https://lichess.org/study/";
 
 // The Link button: the open chapter on Lichess, at the move on the
-// board.
+// board. Two ways to open it - keep one line, comment out the other:
+//   1. SAME TAB - in this tab (or the web app's own window), like
+//      the Settings menu's folder button ([#21]); Back comes back
+//      here
+//   2. NEW TAB - in a new Safari tab, even from the web app (the
+//      x-safari-https: address makes the web app hand it to
+//      Safari)
 function openChapterLink() {
   var id = chapters[currentChapter] && chapters[currentChapter].id;
   if (!id) return;
   var url = LICHESS_STUDY_URL + id;
   if (currentPly > 0) url += "#" + currentPly;
-  //window.open(url, "_blank", "noopener");
-  // forces a web app to open a new tab in safari
-  window.open(url.replace(/^https:/, "x-safari-https:"), "_blank", "noopener");
+  // 1. SAME TAB
+  window.location.href = url;
+  // 2. NEW TAB
+  //window.open(url.replace(/^https:/, "x-safari-https:"), "_blank", "noopener");
 }
 
 /*==================================================================
