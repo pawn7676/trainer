@@ -92,6 +92,7 @@ after changing it.
 | `board.js` | The chessboard: drawing it (pieces, badges, arrows and circles, coordinates), tapping and dragging pieces, piece slides, the resize grip. |
 | `icons.js` | The small interface icons. |
 | `NotoSans.ttf` | The page font. Without it the page falls back to system fonts. |
+| `icon.png` | The icon for the Home Screen (and the browser tab): a plain, opaque 180x180 square - iPadOS rounds the corners itself. Optional. iPadOS keeps the icon it saw when the page was added to the Home Screen, so to see a new one, add the page again. |
 | `engine.js` | Stockfish analysis, behind the Engine and Threat buttons. Its settings are at the top of the file. |
 | `explorer.js` | The trainer's Lichess side: the opening explorer, collecting the Lichess data for the line you're studying in the background, and keeping every answer in the browser. |
 | `stockfish-19-lite-single.js` + `.wasm` | Stockfish, Lite (about 1 MB) - the one the engine uses. |
@@ -102,7 +103,7 @@ after changing it.
 | `index.html` | Sends the site's short address (the trainer's folder, without `trainer.html` on the end) on to `trainer.html`. Only needed on a web host that would otherwise show this README there. |
 
 The trainer stops with an error if any of its files but the Stockfish
-ones, the three license files and `index.html` is missing - or if
+ones, the three license files, `icon.png` and `index.html` is missing - or if
 `rules.js` or `pieces.js` isn't in `../shared/`. When the page is
 opened from a local server, the engine saves its own copy of the
 Stockfish files in the browser while that server is running, so it
@@ -634,7 +635,8 @@ Written by the data page's **Save** button (`data.html`
 | Colors, fonts, board size, layout spacing | `trainer.css` — the settings in `:root` (all colors live there) |
 | Height of the buttons and dropdowns | Worked out, not set: one line of the text font plus the boxes' padding and border (`--one-line-height` in `trainer.css` `:root`) - change those and it follows |
 | Size of the << < > >> symbols (they stay centered at any size) | `trainer.css` — `--nav-glyph-size` (3rem) in `:root` |
-| The space between everything: the board, the boxes, the buttons, the chapter row - and around the page at the screen's edges, where the Settings and Mode menus stop too | `trainer.css` — `--gap` (10px) in `:root` - one size for all of them (the web-app version adds `--top-inset` at the top) |
+| The space between everything: the board, the boxes, the buttons, the chapter row - and around the page at the screen's edges, where the Settings and Mode menus stop too | `trainer.css` — `--gap` (10px) in `:root` - one size for all of them (the Home Screen web app adds `--top-inset` at the top - below) |
+| The extra space at the top of the Home Screen web app, so the iPadOS status bar's blur doesn't cover the board (none in a Safari tab) | `trainer.css` — `--top-inset` in `:root`: 0px, and 24px in its `&.web-app` rule. The page tells the two apart by itself: a few lines at the top of `trainer.html` add the class `web-app` when iPadOS says it was opened from the Home Screen (`navigator.standalone`) |
 | The boxes: the five beside the board, the chapter row's dropdowns and color square - the space inside them, their border, their rounded corners (the buttons share the border and corners) | `trainer.css` — `--box-pad-y` (above and below, 8px), `--box-pad-x` (either side, 16px), `--box-border-width` (1px), `--box-radius` (4px) in `:root` - one set for all of them |
 | The text font - the comment box, the ALT box, the dropdowns, the Settings and Mode menus, and the error messages | `trainer.css` — `--font-family` (Noto Sans), `--text-font-size` (1.35rem), `--text-font-weight`, `--text-line-height` in `:root` |
 | How big and small the board can get | Nothing to set: no button under it may get narrower than its icon (`board.js` [#13]) |
