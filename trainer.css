@@ -579,13 +579,17 @@ button.ctrl.active { background: var(--accent); border-color: var(--accent-brigh
   font-weight: var(--text-font-weight);
   line-height: var(--text-line-height);
 }
-/* The Settings menu's folder button (trainer.html [#21]), at the
-   right of its title: the data page. Its icon (icons.js "folder")
-   the size of the icons on the buttons under the board ([#6]), in a
-   box like theirs - its negative margins keep it from making the
-   title's row any taller. The icon in --bright, the white of the
-   "Settings" beside it, so it stands out on the panel as something
-   to tap - like the date arrows. */
+/* The Settings menu's two title buttons, at the right of its title:
+   refresh (the circular arrow: reloads the page) and the folder
+   button, side by side with a gap between them (the group is one
+   item in the title's row, so the row is laid out as before). */
+.settings-title-btns { display: flex; gap: var(--gap); }
+/* Each button (trainer.html [#21]): its icon (icons.js "refresh" or
+   "folder") the size of the icons on the buttons under the board
+   ([#6]), in a box like theirs - its negative margins keep it from
+   making the title's row any taller. The icon in --bright, the
+   white of the "Settings" beside it, so it stands out on the panel
+   as something to tap - like the date arrows. */
 .settings-title-btn {
   background: var(--panel);
   color: var(--bright);

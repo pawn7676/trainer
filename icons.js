@@ -15,7 +15,8 @@
  *  The buttons under the board use data-icon: "settings" (gear),
  *  "link" (Link), "comment" (speech bubble), "chart" (explorer),
  *  "threat" (crosshair) and "engine" (chip) - and the Settings
- *  menu's data-page button, "folder".
+ *  menu's two title buttons, "refresh" (circular arrow) and
+ *  "folder" (the data page).
  *
  * The icons on the buttons under the board are all drawn to fill
  * about the same share of their 24x24 box, with the same 2px line
@@ -92,6 +93,11 @@ var ICONS = {
   // (lucide.dev, ISC license), unchanged.
   folder:
     '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>',
+  // circular arrow - the Settings menu's refresh button, beside the
+  // folder button on its title row (trainer.html [#21]): reloads the
+  // page. Lucide "rotate-cw" (lucide.dev, ISC license), unchanged.
+  refresh:
+    '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>',
   // open book - mode button and mode menu: the Library
   library:
     '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6C10.1 4.6 7.1 3.8 2.5 3.8v15c4.6 0 7.6.8 9.5 2.2 1.9-1.4 4.9-2.2 9.5-2.2v-15c-4.6 0-7.6.8-9.5 2.2z"/><path d="M12 6v15"/></svg>',

@@ -201,10 +201,14 @@ if (navigator.standalone) document.documentElement.classList.add("web-app");
       </div>
       <div class="menu-backdrop hidden" id="settingsBackdrop">
         <div class="menu" id="settingsPanel">
-          <!-- the title, and on its right the folder button: the data
-               page, in this tab ([#21]) -->
+          <!-- the title, and on its right two buttons: refresh (reloads
+               the page, to pick up newly loaded files) and the folder
+               button (the data page, in this tab) ([#21]) -->
           <div class="menu-title"><span>Settings</span>
-            <button type="button" class="settings-title-btn" id="btnDataPage" title="Open the data page" aria-label="Open the data page" data-icon="folder"></button></div>
+            <div class="settings-title-btns">
+              <button type="button" class="settings-title-btn" id="btnRefresh" title="Refresh the app" aria-label="Refresh the app" data-icon="refresh"></button>
+              <button type="button" class="settings-title-btn" id="btnDataPage" title="Open the data page" aria-label="Open the data page" data-icon="folder"></button>
+            </div></div>
           <div class="menu-row">
             <span class="menu-label">Date</span>
             <div class="date-nav">
@@ -2673,6 +2677,13 @@ function wireSettingsPanel() {
     el("settingsBackdrop").classList.remove("hidden");
     positionSettingsPanel();
     el("settingsPanel").scrollTop = 0; // (opens at the top every time)
+  });
+  // The refresh button, left of the folder button: reloads the page,
+  // so the files loaded on the data page are read again (the trainer
+  // only reads them at start-up, [#10]) - the same as closing the web
+  // app and opening it again, without leaving it.
+  el("btnRefresh").addEventListener("click", function () {
+    window.location.reload();
   });
   // The folder button, on the title's row: the data page, in this tab
   // (DATA_PAGE, [#9]). Back comes back here, as it was left - reload
