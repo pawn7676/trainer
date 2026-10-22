@@ -4,8 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>trainer</title>
-<script>alert("web app: " + navigator.standalone);</script>
-
 <!-- =================================================================
      INDEX
      =================================================================
@@ -124,6 +122,16 @@
                                    i, o); c comments
       [#25] BOOT & STOP .......... start-up; what an error halts
     ============================================================ -->
+
+<!-- The home-screen web app: when iPadOS says the page was opened
+     from its Home Screen icon (navigator.standalone - false in a
+     Safari tab), the page gets the class "web-app", which gives it
+     room for the iPadOS status bar at the top (--top-inset,
+     trainer.css [#2]). Here, before the stylesheet, so the room is
+     there from the first frame. -->
+<script>
+if (navigator.standalone) document.documentElement.classList.add("web-app");
+</script>
 
 <!-- every style on the page -->
 <link rel="stylesheet" href="trainer.css">

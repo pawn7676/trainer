@@ -154,9 +154,20 @@
      full-screen home-screen web app, to clear the iPadOS status
      bar area (clock/wifi/battery) whose translucent blur otherwise
      overlaps the top of the board - on top of the --gap every edge
-     has ([#4]). Tweak this number directly if the blur/status bar
-     still overlaps. */
-  --top-inset: 0px; /* set to 24px for the web-app version */
+     has ([#4]).
+     The page sets it by itself:
+       Safari tab ... 0px - Safari's own toolbar is above the page
+       web app ...... 24px - the rule just below
+     trainer.html's <head> puts the class "web-app" on the page
+     when iPadOS says it was opened from its Home Screen icon
+     (navigator.standalone), and the rule below only applies then.
+     (The CSS check, @media (display-mode: standalone), doesn't
+     work here: iPadOS doesn't report the web app that way.)
+     Tweak the 24px if the blur/status bar still overlaps.
+     (&.web-app is a rule written inside this block: it means
+     "this block, when the page has the class web-app".) */
+  --top-inset: 0px;
+  &.web-app { --top-inset: 24px; }
 
   --bg:                    #161512;
   --panel:                 #2b2a27;
