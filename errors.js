@@ -14,7 +14,7 @@
  * page and blocks every tap and key, and the game is halted. There's
  * no way to carry on: fix the cause and reload the page. If the cause
  * is still there, the message comes straight back. The look is in
- * trainer.css [#14].
+ * trainer.css [#13].
  * (One browser message isn't an error at all, and is passed over:
  * the ResizeObserver note - see [#2].)
  *
@@ -56,9 +56,9 @@
  * message is shown once, and is also still sent to the console.
  * Stopping the page means:
  *   - the comment box gets .has-errors: the messages replace the
- *     comment (trainer.css [#14])
+ *     comment (trainer.css [#13])
  *   - the page gets .page-stopped: a cover over everything but the
- *     comment box blocks every tap (trainer.css [#14])
+ *     comment box blocks every tap (trainer.css [#13])
  *   - keys are blocked (below)
  *   - stopGameplay() (trainer.html [#25]) halts timers, slides, menus,
  *     engine
@@ -81,7 +81,7 @@ function pageStopped() { return pageWarnings.length > 0; }
 
 // Puts the messages on the page and stops it. The first time, the
 // comment box is scrolled into view, in case it's below the bottom
-// of the screen (the narrow layout, trainer.css [#17]).
+// of the screen (the narrow layout, trainer.css [#15]).
 function renderPageWarnings() {
   var box = document.getElementById("commentBox");
   var list = document.getElementById("pageWarnList");
@@ -161,20 +161,33 @@ window.addEventListener("unhandledrejection", function (e) {
  * [#3] FILE CHECKS — the files this page needs (see EXTERNAL FILES
  * in trainer.html's INDEX), checked at boot (trainer.html [#25]) so a
  * missing one says so on screen. icons.js reports a missing icon name
- * only to the console, so that check is repeated here too. pieces.js is
- * checked where the piece art is baked (board.js [#4]).
+ * only to the console, so that check is repeated here too. Two shared
+ * files are checked by board.js itself, which reports through
+ * pageWarn like everything else: pieces.js where the piece art is
+ * baked (board.js [#4]), and board.css when the board starts
+ * (board.js [#8]).
  * Returns false if the trainer can't run at all (it's stopped either
  * way, like for every error).
  *==================================================================*/
 function checkExternalFiles() {
-  // Every color lives in trainer.css [#2]; without it, --bg is
-  // unset.
-  if (!getComputedStyle(document.documentElement).getPropertyValue("--bg").trim()) {
+  var rootStyle = getComputedStyle(document.documentElement);
+  // The trainer's own settings live in trainer.css [#1]; without
+  // it, --board-size is unset.
+  // (Stops here: without trainer.css's settings, other parts of the
+  // page would only add messages of their own.)
+  if (!rootStyle.getPropertyValue("--board-size").trim()) {
     pageWarn("trainer.css is missing - the page has no styling (keep it in the same folder as this page)");
+    return false;
+  }
+  // The house style - the font, the house colors (--bg, --panel...)
+  // - lives in theme.css; without it, --font-family is unset.
+  if (!rootStyle.getPropertyValue("--font-family").trim()) {
+    pageWarn("theme.css is missing - the page has no colors or font (keep it in the \"shared\" " +
+      "folder, next to the trainer's folder)");
   }
   if (typeof RULES === "undefined") {
-    // (rules.js is the one file kept elsewhere: in the "shared"
-    // folder next to the trainer's folder - trainer.html, the
+    // (rules.js, like every shared file, isn't in the trainer's
+    // folder but in "shared", next to it - trainer.html, the
     // script tags)
     pageWarn("rules.js is missing - the trainer can't run without it (keep it in the \"shared\" " +
       "folder, next to the trainer's folder)");
@@ -185,7 +198,16 @@ function checkExternalFiles() {
     return false;
   }
   if (typeof BOARD === "undefined") {
-    pageWarn("board.js is missing - the trainer can't run without it (keep it in the same folder as this page)");
+    pageWarn("board.js is missing - the trainer can't run without it (keep it in the \"shared\" " +
+      "folder, next to the trainer's folder)");
+    return false;
+  }
+  if (typeof OVERLAY === "undefined") {
+    pageWarn("overlay.js is missing - the trainer can't run without it (keep it in the same folder as this page)");
+    return false;
+  }
+  if (typeof TOUCH === "undefined") {
+    pageWarn("touch.js is missing - the trainer can't run without it (keep it in the same folder as this page)");
     return false;
   }
   // .missing = the stand-in in trainer.html [#22]

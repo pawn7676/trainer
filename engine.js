@@ -27,8 +27,9 @@
  *                    from White's point of view (+0.45 White is
  *                    better, -1.20 Black is better, #3 White mates in
  *                    3, #-3 Black mates in 3) - the best line's eval
- *                    in a blue pill (trainer.css [#11]) - and arrows on the board
- *                    for the best move and any other move that's
+ *                    in a blue pill (trainer.css [#10]) - and arrows
+ *                    on the board for the best move and any other
+ *                    move that's
  *                    nearly as good (Lichess's rules and colors - see
  *                    "Engine arrows" below)
  *   Threat on ...... the same for the position as if the side to move
@@ -84,8 +85,9 @@
  *                              the one a step forward is sliding
  *                              into (see "The position analysed"
  *                              below)
- *   ENGINE.drawArrows() ...... draws the arrows (from the
- *                              board's render loop, board.js [#8])
+ *   ENGINE.drawArrows() ...... draws the arrows (from what's
+ *                              drawn over the board on every
+ *                              paint, overlay.js [#1])
  *   ENGINE.shutDown() ........ turns Engine and Threat off (Practice
  *                              on / nothing loaded / the page stopped
  *                              by an error)
@@ -109,12 +111,14 @@
  *                                     the Threat button dims
  *   el, syncNotesHeight
  *   BOARD.render() .................. redraws the board (board.js)
- *   BOARD.drawArrow, hexA, cssColor . the arrows; their colors are
- *                                     asked for by their CSS names
+ *   OVERLAY.drawArrow ............... draws one arrow (overlay.js
+ *                                     [#2], [#6])
+ *   BOARD.cssColor, BOARD.hexA ...... the arrows' colors, asked for
+ *                                     by their CSS names
  *                                     (--engine-arrow, -arrow-alt,
  *                                     --engine-threat-arrow,
- *                                     trainer.css [#2]). Needs
- *                                     board.js [#15]
+ *                                     trainer.css [#1]), and made
+ *                                     see-through (board.js [#3])
  *   playEngineLine .................. plays a tapped line
  *                                     (trainer.html [#14])
  *   TAP_SLOP ........................ how far a touch can move and
@@ -127,7 +131,7 @@
  * and the page markup: #btnEngine and #btnThreat (under the board)
  * and #engineLines (a box of its own beside the board, under the move
  * list's and over the explorer's). The CSS for
- * them is in trainer.css - the buttons in [#7], the lines in [#11] -
+ * them is in trainer.css - the buttons in [#6], the lines in [#10] -
  * with every other style.
  *
  * LOADING THE STOCKFISH FILES
@@ -233,7 +237,7 @@ var ENGINE_TYPES = {
 //     pale red, like the best move is always pale blue (Lichess draws
 //     a lone threat line in solid red - left out on purpose)
 // Lichess's colors are used as-is (they live in trainer.css,
-// trainer.css [#2]); the arrow shape is the trainer's own.
+// trainer.css [#1]); the arrow shape is the trainer's own.
 // How see-through the arrows are: one setting, ENGINE_ARROW_OPACITY,
 // for every engine arrow - blue, grey and red alike. Set to 0.35, a
 // little bolder than Lichess's 0.24: each arrow at 40%
@@ -241,7 +245,7 @@ var ENGINE_TYPES = {
 // 60% (chessground CSS: .cg-shapes { opacity: 0.6 }) - 0.4 x 0.6.
 // Widths are Lichess's, in 1/64ths of a square (best move 15 = about
 // 0.23 of a square, 1.7x the trainer's normal 0.14-square arrow -
-// ARROW.shaft in board.js [#3]); ARROW_WIDTH_UNIT converts them
+// ARROW.shaft in overlay.js [#2]); ARROW_WIDTH_UNIT converts them
 // to the trainer's arrow size. The arrow's other sizes (head, gaps)
 // come from the trainer's ARROW settings too.
 // Lichess: alternatives shown only while shift < 0.2
@@ -796,7 +800,7 @@ function evalDeepEnough(mem) {
 //                                    "Draw": too little material to
 //                                    mate (rules.js gameEnd), where
 //                                    the board takes no more moves
-//                                    either (board.js inputPosition)
+//                                    either (touch.js inputPosition)
 //   "No threat while in check" ..... Threat on, Engine off, and the
 //                                    side to move is in check, so it
 //                                    can't pass ("No threat to show"
@@ -987,10 +991,10 @@ function engineResultsShowing() {
     !engine.viewMsg && currentJob().cmd === engine.cmd && engine.lines.length > 0;
 }
 
-// Draws the arrows (from the board's render, board.js [#8]) by the
-// Lichess rules above. Other lines first, so the best move's arrow ends
-// up on top. In threat mode they're the opponent's threats, in red, and
-// nothing else.
+// Draws the arrows (from what's drawn over the board on every paint,
+// overlay.js [#1]) by the Lichess rules above. Other lines first, so
+// the best move's arrow ends up on top. In threat mode they're the
+// opponent's threats, in red, and nothing else.
 function drawEngineArrows() {
   if (!arrowsOn || !engineResultsShowing()) return;
   var threat = threatActive();
@@ -1015,14 +1019,14 @@ function drawEngineArrows() {
       ? alt.maxWidth - shift * (alt.maxWidth - 2) / ARROW_SHIFT_LIMIT
       : alt.maxWidth - shift * 50;
     arrows.push({ uci: u, width: Math.round(width),
-                  color: threat ? cssColor("--engine-threat-arrow") : cssColor("--engine-arrow-alt") });
+                  color: threat ? BOARD.cssColor("--engine-threat-arrow") : BOARD.cssColor("--engine-arrow-alt") });
   }
   var top = threat ? ARROW_THREAT : ARROW_BEST;
   arrows.push({ uci: best.pv[0].slice(0, 4), width: top.width,
-                color: threat ? cssColor("--engine-threat-arrow") : cssColor("--engine-arrow") });
+                color: threat ? BOARD.cssColor("--engine-threat-arrow") : BOARD.cssColor("--engine-arrow") });
   arrows.forEach(function (a) {
-    BOARD.drawArrow({ from: a.uci.slice(0, 2), to: a.uci.slice(2, 4) },
-      { color: hexA(a.color, ENGINE_ARROW_OPACITY), scale: a.width / ARROW_WIDTH_UNIT });
+    OVERLAY.drawArrow({ from: a.uci.slice(0, 2), to: a.uci.slice(2, 4) },
+      { color: BOARD.hexA(a.color, ENGINE_ARROW_OPACITY), scale: a.width / ARROW_WIDTH_UNIT });
   });
 }
 
@@ -1041,7 +1045,7 @@ function formatEngineScore(ln, turn) {
 }
 
 // The Engine and Threat buttons under the board (lit blue while on,
-// like the explorer button - trainer.css [#7]), and the lines.
+// like the explorer button - trainer.css [#6]), and the lines.
 function updateEngineUI() {
   var btn = el("btnEngine");
   if (!btn) return;
@@ -1132,7 +1136,7 @@ function renderEngineLines() {
         var row = document.createElement("div");
         row.className = "engine-line";
         // (the eval's own inner span is what the best line's pill is
-        // drawn on - trainer.css [#11])
+        // drawn on - trainer.css [#10])
         row.innerHTML = '<span class="el-eval"><span class="el-pill"></span></span><span class="el-moves"></span>';
         box.appendChild(row);
       }

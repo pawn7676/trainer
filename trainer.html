@@ -4,14 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>trainer</title>
-<!-- The icon, for the home screen (and the browser tab).
-     iPadOS rounds the corners itself, so icon.png is a plain
-     opaque 180x180 square. Two tags, because one tag naming
-     both uses is not reliably honoured. iPadOS keeps the icon
-     it saw when the page was added to the Home Screen: to see
-     a new one, add the page again. -->
-<link rel="apple-touch-icon" href="icon.png">
-<link rel="icon" href="icon.png">
 <!-- =================================================================
      INDEX
      =================================================================
@@ -21,12 +13,23 @@
      it's in.
 
      THE FILES - keep them all in the same folder as this page,
-     except rules.js and pieces.js, which are in the shared folder
-     (below):
+     except the ones marked ../shared/, which are in the shared
+     folder (below):
       trainer.html ................... this page: the markup, and the
                                        chapters and gameplay below
-      trainer.css .................... how the page looks; every
-                                       color is in trainer.css [#2]
+      trainer.css .................... how the page looks: the
+                                       trainer's own styles, and
+                                       its own colors, in
+                                       trainer.css [#1]
+      ../shared/theme.css ............ the house style every
+                                       project shares: the font
+                                       (Noto Sans), the house
+                                       colors, and the look of
+                                       buttons, dropdowns,
+                                       switches and menus
+      ../shared/board.css ............ how the board looks: its
+                                       colors, and the font of its
+                                       letters and numbers
       errors.js ...................... error messages - every error
                                        stops the page until it's
                                        reloaded
@@ -43,8 +46,18 @@
                                        folder: it's in "shared",
                                        like rules.js (see the top
                                        of pieces.js)
-      board.js ....................... the board: drawing, taps and
-                                       drags, piece slides, resizing
+      ../shared/board.js ............. the board itself: squares,
+                                       letters and numbers, pieces,
+                                       check glow, kept sharp. NOT
+                                       in this folder: it's in
+                                       "shared", like rules.js (see
+                                       the top of board.js)
+      overlay.js ..................... what's drawn over the board:
+                                       badges, arrows and circles,
+                                       piece slides, wrong moves
+      touch.js ....................... your finger on the board:
+                                       taps and drags, the promotion
+                                       picker, the resize grip
       icons.js ....................... UI icons (data-icon="...")
       engine.js ...................... Stockfish analysis
       explorer.js .................... Lichess opening explorer, and
@@ -58,11 +71,8 @@
                                        trainer, gathers the Lichess
                                        data and saves
                                        explorer_data.jsonl
-      NotoSans.ttf ................... the page font (trainer.css
-                                       [#1])
-      icon.png ....................... the home-screen icon (and
-                                       the browser tab's), 180x180
-                                       - optional
+      ../shared/NotoSans.ttf ......... the font, loaded by
+                                       theme.css
       stockfish-19-lite-single.js .... engine (Lite)
       stockfish-19-lite-single.wasm .. engine (Lite), used by the .js
       stockfish-19-single.js ......... engine (Full, optional - only
@@ -76,7 +86,8 @@
                                        pieces, the font, the icons,
                                        Lichess, python-chess), with
                                        their licenses
-      NotoSans-OFL.txt ............... the font's license
+      ../shared/NotoSans-OFL.txt ..... the font's license, beside
+                                       the font
       index.html ..................... sends the site's short
                                        address on to this page (for
                                        a web host that would show
@@ -134,17 +145,12 @@
       [#25] BOOT & STOP .......... start-up; what an error halts
     ============================================================ -->
 
-<!-- The home-screen web app: when iPadOS says the page was opened
-     from its Home Screen icon (navigator.standalone - false in a
-     Safari tab), the page gets the class "web-app", which gives it
-     room for the iPadOS status bar at the top (--top-inset,
-     trainer.css [#2]). Here, before the stylesheet, so the room is
-     there from the first frame. -->
-<script>
-if (navigator.standalone) document.documentElement.classList.add("web-app");
-</script>
-
-<!-- every style on the page -->
+<!-- the house style (the font, the house colors, buttons, menus...)
+     and the board's look, from the "shared" folder next to this
+     page's folder (one copy for every project) - then the trainer's
+     own styles -->
+<link rel="stylesheet" href="../shared/theme.css">
+<link rel="stylesheet" href="../shared/board.css">
 <link rel="stylesheet" href="trainer.css">
 </head>
 <body>
@@ -155,9 +161,9 @@ if (navigator.standalone) document.documentElement.classList.add("web-app");
       <div id="boardFrame">
         <!-- The board, and #dragGhost (the piece held while
              dragging) just below. The sizes on these two canvases
-             are only where they start: board.js
-             gives them as many pixels as the screen shows them with,
-             so they're sharp (board.js, SHARPNESS in [#1]). -->
+             are only where they start: board.js and touch.js
+             give them as many pixels as the screen shows them with,
+             so they're sharp (board.js [#2]). -->
         <canvas id="mini" width="1152" height="1152"></canvas>
         <div class="promotion-picker hidden" id="promoPicker"></div>
         <div id="boardResizeHandle" title="Drag to resize board" data-icon="resize"></div>
@@ -166,20 +172,20 @@ if (navigator.standalone) document.documentElement.classList.add("web-app");
       <!-- the mode menu, opened by the mode button: a pop-up like
            Settings, one row per list mode - its rows are made by
            buildModeMenu ([#2]) -->
-      <div class="settings-backdrop hidden" id="modeMenuBackdrop">
-        <div class="settings-panel" id="modeMenu">
-          <div class="settings-title">Mode</div>
+      <div class="menu-backdrop hidden" id="modeMenuBackdrop">
+        <div class="menu" id="modeMenu">
+          <div class="menu-title">Mode</div>
           <div id="modeMenuRows"></div>
         </div>
       </div>
-      <div class="settings-backdrop hidden" id="settingsBackdrop">
-        <div class="settings-panel" id="settingsPanel">
+      <div class="menu-backdrop hidden" id="settingsBackdrop">
+        <div class="menu" id="settingsPanel">
           <!-- the title, and on its right the folder button: the data
                page, in this tab ([#21]) -->
-          <div class="settings-title"><span>Settings</span>
+          <div class="menu-title"><span>Settings</span>
             <button type="button" class="settings-title-btn" id="btnDataPage" title="Open the data page" aria-label="Open the data page" data-icon="folder"></button></div>
-          <div class="settings-row">
-            <span class="settings-row-label">Date</span>
+          <div class="menu-row">
+            <span class="menu-label">Date</span>
             <div class="date-nav">
               <button type="button" class="date-nav-btn" id="dateNavPrev" title="Previous day" aria-label="Previous day" data-icon="chevronLeft"></button>
               <span class="date-nav-label" id="dateNavLabel" title="Jump to today">Today</span>
@@ -188,33 +194,33 @@ if (navigator.standalone) document.documentElement.classList.add("web-app");
           </div>
           <!-- Each switch's whole row is a <label>, so a tap anywhere
                on the row - the words too - flips its switch
-               (trainer.css [#9]) -->
-          <label class="settings-row">
-            <span class="settings-row-label">Auto practice mode</span>
+               (trainer.css [#8]) -->
+          <label class="menu-row">
+            <span class="menu-label">Auto practice mode</span>
             <span class="switch"><input type="checkbox" id="toggleAutoPractice"><span class="slider"></span></span>
           </label>
-          <label class="settings-row">
-            <span class="settings-row-label">Show chapter name</span>
+          <label class="menu-row">
+            <span class="menu-label">Show chapter name</span>
             <span class="switch"><input type="checkbox" id="toggleShowChapterName"><span class="slider"></span></span>
           </label>
-          <label class="settings-row">
-            <span class="settings-row-label">Show move annotations</span>
+          <label class="menu-row">
+            <span class="menu-label">Show move annotations</span>
             <span class="switch"><input type="checkbox" id="toggleShowAnnotations"><span class="slider"></span></span>
           </label>
-          <label class="settings-row">
-            <span class="settings-row-label">Show material count</span>
+          <label class="menu-row">
+            <span class="menu-label">Show material count</span>
             <span class="switch"><input type="checkbox" id="toggleShowMaterialCount"><span class="slider"></span></span>
           </label>
-          <label class="settings-row">
-            <span class="settings-row-label">Show ALT box</span>
+          <label class="menu-row">
+            <span class="menu-label">Show ALT box</span>
             <span class="switch"><input type="checkbox" id="toggleShowAltBox"><span class="slider"></span></span>
           </label>
-          <label class="settings-row">
-            <span class="settings-row-label">Highlight last move</span>
+          <label class="menu-row">
+            <span class="menu-label">Highlight last move</span>
             <span class="switch"><input type="checkbox" id="toggleShowLastMoveHighlight"><span class="slider"></span></span>
           </label>
-          <label class="settings-row">
-            <span class="settings-row-label">Highlight check</span>
+          <label class="menu-row">
+            <span class="menu-label">Highlight check</span>
             <span class="switch"><input type="checkbox" id="toggleShowCheckHighlight"><span class="slider"></span></span>
           </label>
           <!-- (No Lichess token here: it's pasted on data.html
@@ -240,7 +246,7 @@ if (navigator.standalone) document.documentElement.classList.add("web-app");
            threat while in check", or why Stockfish can't run
            (engine.js "The engine lines") -->
       <div id="engineLines" class="box hidden"></div>
-      <!-- the opening explorer (explorer.js, trainer.css [#12]),
+      <!-- the opening explorer (explorer.js, trainer.css [#11]),
            turned on with the explorer button under the board: why
            Lichess can't answer (only then), and the table of
            moves -->
@@ -251,7 +257,7 @@ if (navigator.standalone) document.documentElement.classList.add("web-app");
       <div class="box" id="commentBox">
         <div id="commentText" class="empty">Select a chapter to begin.</div>
         <!-- errors take the comment's place (errors.js [#1],
-             trainer.css [#14]) -->
+             trainer.css [#13]) -->
         <div id="pageWarnings">
           <div id="pageWarnList"></div>
           <div id="pageWarnHelp">The trainer is stopped. Fix the problem, then reload the page.</div>
@@ -266,12 +272,12 @@ if (navigator.standalone) document.documentElement.classList.add("web-app");
     </div>
 
     <!-- The button row, under the board and the boxes beside it -
-         the page grid's second row (trainer.css [#4], [#7]):
+         the page grid's second row (trainer.css [#3], [#6]):
          Settings, Mode and << < > >> under the board, as wide as it,
          and the other tools under the boxes, as wide as them. -->
     <!-- Settings, Mode, then << < > >>. At the end of a line, >>
          becomes Next - the next-chapter icon - or stays >>, greyed out,
-         on the last chapter ([#6], trainer.css [#15]) -->
+         on the last chapter ([#6], trainer.css [#14]) -->
     <div class="controls-nav">
       <button class="ctrl" id="btnSettings" title="Settings" data-icon="settings"></button>
       <!-- the mode button: opens the mode menu ([#2]) -->
@@ -295,7 +301,7 @@ if (navigator.standalone) document.documentElement.classList.add("web-app");
       <button class="ctrl active" id="btnPractice" title="Toggle practice mode"></button>
     </div>
     <!-- The chapter row, across the whole page under the buttons (the
-         page grid's third row, trainer.css [#8]): the Link button
+         page grid's third row, trainer.css [#7]): the Link button
          first, then the Chapter dropdown. In Library mode the Link
          button, the color square and the Study dropdown sit under the
          board, and the Chapter dropdown under the boxes ([#5]). -->
@@ -315,7 +321,7 @@ if (navigator.standalone) document.documentElement.classList.add("web-app");
        and this page reads them from the browser - [#7]-[#10].) -->
 </div>
 <!-- covers the page while an error has it stopped (errors.js [#1],
-     trainer.css [#14]) -->
+     trainer.css [#13]) -->
 <div id="pageStopCover"></div>
 
 <!-- Error messages. Placed before every other script on the
@@ -354,10 +360,16 @@ if (typeof pageWarn === "undefined") {
      page's folder, so every project uses the same copy. -->
 <script src="../shared/pieces.js"></script>
 
-<!-- The board: drawing, taps and drags, piece slides, resize.
-     Must load before trainer script, since it defines the
-     global BOARD object. -->
-<script src="board.js"></script>
+<!-- The board itself (squares, letters and numbers, pieces, check
+     glow), in the "shared" folder like rules.js; what's drawn over
+     it (badges, arrows, slides, wrong moves); and your finger on it
+     (taps and drags, promotion picker, resize grip). Must load
+     before trainer script, since they define the global BOARD,
+     OVERLAY and TOUCH objects - board.js first, as the other two
+     use it. -->
+<script src="../shared/board.js"></script>
+<script src="overlay.js"></script>
+<script src="touch.js"></script>
 
 <!-- UI icons (gear, calendar, arrows, play/stop...). Fills in every
      element above that has a data-icon="..." attribute, so it must
@@ -516,7 +528,7 @@ function updateListModeButton() {
 
 // ---- The mode menu ---------------------------------------------
 // The mode button opens it: a pop-up over the bottom of the board,
-// like the Settings menu ([#21]) - same look (trainer.css [#9]), and
+// like the Settings menu ([#21]) - same look (trainer.css [#8]), and
 // tapping outside it closes it. One row per mode, in LIST_MODES
 // order, each its icon and name; the active mode's row is lit up.
 // Tapping a row picks that mode and closes the menu (tapping the
@@ -619,7 +631,7 @@ function todayString() {
 // The date the SR list is built for (not the random lists - those
 // always use the real date). Defaults to the real today on every
 // fresh load (this is a plain var, never written to localStorage -
-// see the settings-panel date nav below), and can be walked forward
+// see the Settings menu's date row below), and can be walked forward
 // or backward via the Settings popup - backward to review what was
 // due on a missed day, forward to preview what will be due later.
 var srViewDate = realToday();
@@ -629,7 +641,7 @@ function isViewingToday() { return srViewDate.getTime() === realToday().getTime(
 // Moves srViewDate by deltaDays (either direction - no clamping, so
 // it can be browsed into the future as well as the past). Re-derives
 // the chapter list so the change takes effect immediately, and
-// refreshes the settings-panel date label.
+// refreshes the Settings menu's date label.
 function shiftSRViewDate(deltaDays) {
   var d = new Date(srViewDate);
   d.setDate(d.getDate() + deltaDays);
@@ -692,7 +704,7 @@ function loadChapter(idx) {
   BOARD.setOrientation(side);
   currentPly = 0;
   piecesHidden = isBlindChapter(); // a blindfold puzzle starts hidden ([#12])
-  BOARD.clearSelection();
+  TOUCH.clearSelection();
   el("chapterSel").value = idx;
   el("btnChapterLink").disabled = !chapters[idx].id;
   saveLastChapterKey(chapterKey(chapters[idx]));
@@ -715,7 +727,7 @@ function loadChapter(idx) {
 // line once with rules.js - the same SAN python-chess writes:
 //   san ..... the move's name: "Nf3", "exd5", "O-O", "e8=Q+", "Qh2#"
 //             - the move list ([#19]), and the check glow and badges
-//             while a move slides in (board.js [#5])
+//             while a move slides in (overlay.js [#3], [#4])
 //   altSan .. its ALT: moves' names, Black's with "..." in front
 //             ("...Nf6") - the ALT box ([#18])
 // Done the first time a chapter opens, and kept on it (the chapter
@@ -746,11 +758,11 @@ function nameMoves(ch) {
 // rather than leaving the previous mode's chapter on the board.
 function clearBoard(message) {
   settleBoard();
-  BOARD.closePromoPicker();
+  TOUCH.closePromoPicker();
   chapterMoves = [];
   currentPly = 0;
   piecesHidden = false;
-  BOARD.clearSelection();
+  TOUCH.clearSelection();
   game.pos = new RULES.Position();
   game.moves = [];
   el("btnChapterLink").disabled = true;
@@ -913,8 +925,8 @@ function addOption(sel, value, text) {
 // Library mode it's split where the board ends: the Link button, the
 // color square and Study under the board, Chapter under the boxes
 // beside it (in the narrow, stacked layout: split under the gap
-// between << and < - trainer.css [#16]). A name too long for its
-// dropdown is simply cut off at the edge (trainer.css [#8]).
+// between << and < - trainer.css [#15]). A name too long for its
+// dropdown is simply cut off at the edge (trainer.css [#7]).
 // Shown only in Library mode: the row gets the class "library".
 // Coming from Spaced repetition or Random openings, the Library opens
 // on the chapter you were on, with the color and study set to match
@@ -1012,22 +1024,15 @@ function carryChapterToLibrary() {
 var LICHESS_STUDY_URL = "https://lichess.org/study/";
 
 // The Link button: the open chapter on Lichess, at the move on the
-// board. Two ways to open it - keep one line, comment out the other:
-//   1. SAME TAB - in this tab (or the web app's own window), like
-//      the Settings menu's folder button ([#21]); Back comes back
-//      here
-//   2. NEW TAB - in a new Safari tab, even from the web app (the
-//      x-safari-https: address makes the web app hand it to
-//      Safari)
+// board.
 function openChapterLink() {
   var id = chapters[currentChapter] && chapters[currentChapter].id;
   if (!id) return;
   var url = LICHESS_STUDY_URL + id;
   if (currentPly > 0) url += "#" + currentPly;
-  // 1. SAME TAB
-  window.location.href = url;
-  // 2. NEW TAB
-  //window.open(url.replace(/^https:/, "x-safari-https:"), "_blank", "noopener");
+  //window.open(url, "_blank", "noopener");
+  // forces a web app to open a new tab in safari
+  window.open(url.replace(/^https:/, "x-safari-https:"), "_blank", "noopener");
 }
 
 /*==================================================================
@@ -1045,7 +1050,7 @@ function openChapterLink() {
  * For NEXT_LOCK_MS after >> turns into Next, taps on it are ignored,
  * so a quick double tap on >> (or a second tap right after your last
  * move) can't skip past the end of the line before you've seen it.
- * The look of Next is in trainer.css [#15].
+ * The look of Next is in trainer.css [#14].
  *==================================================================*/
 var NEXT_LOCK_MS = 500;
 var endOfLine = false;   // the board is at the end of the book line
@@ -1213,8 +1218,9 @@ function startCurrentList() {
  *==================================================================*/
 
 /*==================================================================
- * [#11] HELPERS — small tools used all over the page (board.js,
- * engine.js and explorer.js too): el(), a pointerup-first tap binder
+ * [#11] HELPERS — small tools used all over the page (overlay.js,
+ * touch.js, engine.js and explorer.js too): el(), a pointerup-first
+ * tap binder
  * (to dodge a mobile ghost-click quirk), how far a tap can move, and
  * double-tap-zoom prevention.
  *==================================================================*/
@@ -1223,7 +1229,7 @@ function el(id) { return document.getElementById(id); }
 // How far (px) a touch can move and still be a tap - any further and
 // it's a drag or a scroll. The one setting for it, everywhere:
 //   - the board: a piece pressed and moved further starts dragging it
-//     (board.js [#11]); less is a tap, for tap-to-move
+//     (touch.js [#2]); less is a tap, for tap-to-move
 //   - the comment box: moved further, it's a scroll, and doesn't tap
 //     past a comment ([#23])
 //   - a move in an engine line (engine.js "Tapping a move in a line")
@@ -1266,8 +1272,9 @@ function bindTap(node, handler) {
 
 // NO DOUBLE-TAP ZOOM, anywhere on the page - two rules, both for the
 // whole page:
-//   1. touch-action: manipulation on every element (trainer.css [#3]).
-//      (The meta viewport tag's user-scalable=no is ignored by iPadOS.)
+//   1. touch-action: manipulation on every element (trainer.css
+//      [#2]). (The meta viewport tag's user-scalable=no is ignored
+//      by iPadOS.)
 //   2. This guard, because iPadOS doesn't always honour rule 1: a
 //      touch that STARTS within DOUBLE_TAP_MS of the last tap ending
 //      - the second tap of a double tap - has the iPad's own handling
@@ -1287,7 +1294,7 @@ function bindTap(node, handler) {
 // Left alone: buttons, dropdowns, switches and text fields (button,
 // select, input, label). Buttons don't zoom anyway (rule 1 works on
 // them), and a quick second tap on < or > has to click. A DISABLED
-// button lets taps through to what's behind it (trainer.css [#3]) -
+// button lets taps through to what's behind it (trainer.css [#2]) -
 // so a quick double tap on a greyed-out button is caught here like
 // anywhere else. Every tap's end is noted, buttons' included: tapping
 // << goes to the start and disables it straight away, so a quick
@@ -1394,8 +1401,8 @@ function parseUciSquares(uci) {
 // always wins over whatever was pending or in flight.
 function settleBoard() {
   cancelPause();
-  BOARD.clearWrongMove(false);
-  BOARD.stopAnimation();
+  OVERLAY.clearWrongMove(false);
+  OVERLAY.stopAnimation();
   anaSliding = false; // ([#14])
 }
 
@@ -1455,12 +1462,12 @@ function goToPly(ply, skipAnim) {
         EXPLORER.positionChanged(nextPos);
       }
     }
-    BOARD.animateMove(animMove, ply - 1, function () { finishGoToPly(ply); });
+    OVERLAY.animateMove(animMove, ply - 1, function () { finishGoToPly(ply); });
   } else if (backMove) {
     // The board goes straight to the earlier position, and the
-    // move's piece slides home over it (board.js [#9]).
+    // move's piece slides home over it (overlay.js [#5]).
     finishGoToPly(ply);
-    BOARD.animateMove(backMove, ply, function () { BOARD.render(); }, true);
+    OVERLAY.animateMove(backMove, ply, function () { BOARD.render(); }, true);
   } else {
     finishGoToPly(ply);
   }
@@ -1468,7 +1475,7 @@ function goToPly(ply, skipAnim) {
 
 function finishGoToPly(ply) {
   currentPly = ply;
-  BOARD.clearSelection();
+  TOUCH.clearSelection();
   rebuildPosition(ply);
   BOARD.render();
   updateMoveListHighlight();
@@ -1507,7 +1514,7 @@ function navPrev() {
   // it's your own move sliding in (from >): cancelling the opponent's
   // reply would just bring it straight back (maybeAutoPlayBook), so
   // there back takes back your move, as it always has.
-  if (BOARD.isAnimating() && (mode === "browse" || game.pos.turn === side)) cancelStep();
+  if (OVERLAY.isAnimating() && (mode === "browse" || game.pos.turn === side)) cancelStep();
   else if (onAnalysisLine()) goToAnalysis(anaIdx - 1);
   // At a blindfold puzzle's start: hides the pieces again ([#12]).
   else if (currentPly === 0 && isBlindChapter() && !piecesHidden) hidePieces();
@@ -1538,11 +1545,11 @@ function navNext(snapAnim) {
   if (piecesHidden) { piecesHidden = false; goToPly(0, true); return; }
   goToPly(currentPly + 1);
 }
-// A step forward still sliding in (BOARD.isAnimating()), on whichever
-// line it's on: landStep puts it on the board at once, cancelStep
-// leaves the board where it was before it. (A step onto the analysis
-// line always goes from anaIdx to anaIdx + 1 - from 0 at the book
-// position it branches from.)
+// A step forward still sliding in (OVERLAY.isAnimating()), on
+// whichever line it's on: landStep puts it on the board at once,
+// cancelStep leaves the board where it was before it. (A step onto
+// the analysis line always goes from anaIdx to anaIdx + 1 - from 0 at
+// the book position it branches from.)
 function landStep() {
   if (anaSliding) goToAnalysis(anaIdx + 1, true);
   else goToPly(currentPly + 1, true);
@@ -1657,7 +1664,7 @@ function playEngineLine(ucis) {
   if (mode !== "browse" || !game.pos || !ucis || !ucis.length) return;
   // A step forward still sliding in: the lines are already for the
   // position after it, so land it first.
-  if (BOARD.isAnimating()) landStep();
+  if (OVERLAY.isAnimating()) landStep();
   var pos = game.pos.clone();
   var ply = currentPly, idx = anaIdx, onAna = onAnalysisLine();
   var played = 0, listChanged = false;
@@ -1705,7 +1712,7 @@ function playEngineLine(ucis) {
 // book position it branches from). The analysis-line counterpart of
 // goToPly in [#13], and it slides the same way: one step forward
 // slides the move in (slideAnalysisMove), one step back slides it
-// home over the earlier position (board.js [#9]); bigger jumps, and
+// home over the earlier position (overlay.js [#5]); bigger jumps, and
 // skipAnim, are instant. The steps count from the book position the
 // line branches from too, so the first move slides on and off it.
 function goToAnalysis(idx, skipAnim) {
@@ -1727,7 +1734,7 @@ function goToAnalysis(idx, skipAnim) {
     // The board is already at the earlier position; the move's piece
     // slides home over it (moveIndex null: not a book move).
     var back = parseUciSquares(analysis.moves[idx].uci);
-    if (back) BOARD.animateMove(back, null, function () { BOARD.render(); }, true);
+    if (back) OVERLAY.animateMove(back, null, function () { BOARD.render(); }, true);
   }
 }
 
@@ -1737,7 +1744,7 @@ function goToAnalysis(idx, skipAnim) {
 // after. The move list, comment, engine and explorer move on as the
 // slide starts. The slide carries the move's SAN and uci, so a check
 // glows, and a mate or stalemate gets its badge, from its first frame
-// (board.js [#5], [#6]).
+// (overlay.js [#3], [#4]).
 function slideAnalysisMove(idx) {
   var mv = analysis.moves[idx - 1];
   var sq = parseUciSquares(mv.uci);
@@ -1755,7 +1762,7 @@ function slideAnalysisMove(idx) {
   }
   sq.san = mv.san;
   sq.uci = mv.uci;
-  BOARD.animateMove(sq, null, function () { finishGoToAnalysis(idx); });
+  OVERLAY.animateMove(sq, null, function () { finishGoToAnalysis(idx); });
 }
 
 // The board at the analysis line's move idx (1 or more), with
@@ -1764,7 +1771,7 @@ function finishGoToAnalysis(idx) {
   anaSliding = false;
   anaIdx = idx;
   currentPly = analysis.basePly;
-  BOARD.clearSelection();
+  TOUCH.clearSelection();
   rebuildPosition(currentPly);
   BOARD.render();
   updateMoveListHighlight();
@@ -1831,8 +1838,8 @@ function setMode(next) {
 // lands - a premove. Picking up a piece doesn't force-resolve the
 // opponent's move (so its slide animation, if any, keeps playing);
 // only actually dropping the premove on its target square does, via
-// playPremove() below. The animOverlay/userDragOverlay split in
-// renderMiniBoard is what lets both animations coexist on screen
+// playPremove() below. The animOverlay/userDragOverlay split
+// (overlay.js [#3]) is what lets both animations coexist on screen
 // without one clobbering the other while this is going on.
 function pendingOpponentUci() {
   if (mode !== "practice" || !chapterMoves || currentPly >= chapterMoves.length) return null;
@@ -1842,7 +1849,7 @@ function pendingOpponentUci() {
 }
 
 // Every move the player makes on the board - tapped or dragged
-// (board.js [#10], [#11]) - comes here: the board's one handoff to the
+// (touch.js [#1], [#2]) - comes here: the board's one handoff to the
 // practice rules.
 function tryPlayMove(m) {
   if (pageStopped()) return; // see errors.js [#1]
@@ -1863,9 +1870,9 @@ function tryPlayMove(m) {
   // Your own book move still sliding in from the > button ([#13]): the
   // board is still on the position before it, so a move dropped now
   // isn't checked - it just snaps back, like an illegal drop. (The
-  // board takes no input then anyway - board.js inputPosition - so
+  // board takes no input then anyway - touch.js inputPosition - so
   // this is only a safety net.)
-  if (BOARD.isAnimating()) { BOARD.render(); return; }
+  if (OVERLAY.isAnimating()) { BOARD.render(); return; }
   var uci = game.pos.uciOf(m);
   var expected = chapterMoves[currentPly];
   if (expected && expected.uci === uci) {
@@ -1876,9 +1883,9 @@ function tryPlayMove(m) {
     // Wrong (or an ALT: move): park the piece on the square it was
     // dropped on, then slide it home after PAUSE_MS.
     var isAlt = !!(expected && expected.altUci && expected.altUci.indexOf(uci) !== -1);
-    BOARD.showWrongMove(m, isAlt);
+    OVERLAY.showWrongMove(m, isAlt);
     BOARD.render();
-    pause(function () { BOARD.clearWrongMove(true); });
+    pause(function () { OVERLAY.clearWrongMove(true); });
   }
 }
 
@@ -1907,10 +1914,10 @@ function playPremove(m) {
 // Two things wait PAUSE_MS before they happen:
 //   - the opponent's reply, after your move (when your move has no
 //     comment - see maybeAutoPlayBook below; the piece then slides
-//     across for MOVE_ANIM_MS, board.js [#9])
+//     across for MOVE_ANIM_MS, overlay.js [#5])
 //   - a wrong or ALT: move's piece and square tint, which stay
 //     parked on the dropped square before sliding/fading back home
-//     (tryPlayMove above; board.js [#9])
+//     (tryPlayMove above; overlay.js [#5])
 // Both share the one timer below. They can never both be waiting:
 // the reply only waits on the opponent's turn, a wrong move only on
 // yours, and the turn only changes through goToPly ([#13]), which
@@ -1968,7 +1975,7 @@ function passNoteGate() {
 /*==================================================================
  * [#17] ANNOTATION COLORS — the !!/!/!?/?!/?/?? colors, in one place
  * for the move list ([#19]), the comment text ([#18]) and the board's
- * badges (board.js [#6]). In the comment text, a move with a glyph
+ * badges (overlay.js [#4]). In the comment text, a move with a glyph
  * ("Nf3!", "exd5?!") is found with a regex (a SAN pattern, and a
  * lookahead that tells a glyph from ordinary punctuation) and
  * colored. The comment is built fresh each time it's shown, as one
@@ -1986,7 +1993,7 @@ var ANNOTATION_CLASS = {
 };
 function annotationColor(glyph) {
   var cls = ANNOTATION_CLASS[glyph];
-  return cls ? cssColor("--" + cls) : null;
+  return cls ? BOARD.cssColor("--" + cls) : null;
 }
 
 // SAN move core, reused for the move itself and to detect a
@@ -2043,12 +2050,12 @@ function buildAnnotatedFragment(text) {
  * (moveComment, below) - the box itself stays, for everything else
  * it shows.
  * (The circles and arrows that go with each comment are drawn
- * by the board, board.js [#3]. While there's an error, it takes the
+ * by the board, overlay.js [#2]. While there's an error, it takes the
  * comment's place - errors.js [#1].)
  * A comment's line breaks come ready-made in the file: the build
  * applies your comma rule on Lichess (jsonl_writer.py [#1]), so
  * "\n" is a plain line break and "\n\n" a blank line, and the box
- * just shows them (white-space: pre-wrap, trainer.css [#13]).
+ * just shows them (white-space: pre-wrap, trainer.css [#12]).
  *==================================================================*/
 // "More text below" scroll cue for the comment box - see
 // #commentScrollCue's CSS for the visual. The chevron appears once
@@ -2122,7 +2129,7 @@ var commentPly = 0;
 // text before move 1 (updateComment, above), the ALT box, or the
 // messages and errors that take the
 // comment's place. The move's arrows and circles stay on the board
-// either way: they follow Show move annotations (board.js [#3]).
+// either way: they follow Show move annotations (overlay.js [#2]).
 function moveComment(mv) {
   return showComments && mv ? mv.comment || "" : "";
 }
@@ -2209,7 +2216,7 @@ function renderMoveList() {
       pair = appendMovePair(list, moveNo + (white ? "." : "..."));
     } else {
       // A line may break between White's and Black's move
-      // (trainer.css [#12])
+      // (trainer.css [#11])
       pair.appendChild(document.createElement("wbr"));
     }
     pair.appendChild(moveSpan(i));
@@ -2255,7 +2262,7 @@ function appendVariation(list) {
       v.appendChild(pair);
     } else {
       // Black's move after White's in the same pair - a line
-      // may break between them (trainer.css [#12])
+      // may break between them (trainer.css [#11])
       pair.appendChild(document.createElement("wbr"));
     }
     span = document.createElement("span");
@@ -2315,7 +2322,7 @@ function updateMoveListHighlight(ply, ana) {
 }
 
 // Scrolls the move list (it shows --move-list-rows lines, then
-// scrolls - trainer.css [#12]) so the current move's line is in view:
+// scrolls - trainer.css [#11]) so the current move's line is in view:
 // a whole line at a time, so no line is ever cut in half at the top
 // or bottom. No current move (the start of the line): back to the
 // top, where the first move is. Only the list scrolls - never the
@@ -2357,20 +2364,20 @@ function scrollMoveListTo(cur) {
  *       of comment text ..... the comment box is hidden as well
  * So as the room shrinks, the ALT box goes first, then the comment
  * box, the explorer, the engine's lines and the move list.
- * A box hidden for room gets the class "no-room" (trainer.css [#3]),
+ * A box hidden for room gets the class "no-room" (trainer.css [#2]),
  * kept apart from "hidden", which says whether it's on at all (set by
  * engine.js, explorer.js, setMode [#15] and applyShowAltBox [#21]) -
  * so a box shows only when it's on AND there's room for it. Hiding it
  * only takes it out of sight: the engine keeps analysing, the
  * explorer keeps asking.
- * Every size is read from the page at the time (trainer.css [#2],
- * [#13]): the boxes' own heights, the comment's font size, line
+ * Every size is read from the page at the time (trainer.css [#1],
+ * [#12]): the boxes' own heights, the comment's font size, line
  * spacing and padding, and --gap.
  *==================================================================*/
 // True when the page is in its stacked (phone) layout - the grid has
 // one column instead of two. Asks the page itself rather than
 // repeating the 820px breakpoint, which lives only in the CSS
-// (trainer.css [#16]).
+// (trainer.css [#15]).
 function isStackedLayout() {
   var layout = document.querySelector(".layout");
   if (!layout) return false;
@@ -2458,7 +2465,7 @@ function syncNotesHeight() {
  * the store itself (localStorage, one entry), the Show...
  * switches and other toggles with their defaults, restoring
  * them all at boot, and the Settings panel (gear menu) that
- * changes them. The board size (board.js [#13]) and the last-open
+ * changes them. The board size (touch.js [#4]) and the last-open
  * chapter ([#4]) are saved through the same store, and so is the
  * Lichess token - pasted on data.html, read by explorer.js
  * ("THE TOKEN" there). (The engine's
@@ -2481,8 +2488,8 @@ function saveSetting(key, value) {
 }
 
 // ---- The toggles: defaults (the saved values replace them at boot)
-// !!/?/#/eval badges (board.js [#6]) + circles/arrows
-// (board.js [#3]) on the board
+// !!/?/#/eval badges (overlay.js [#4]) + circles/arrows
+// (overlay.js [#2]) on the board
 var showAnnotations = true;
 var showMaterialCount = true; // number in a1/a8 or h1/h8 squares
 // the move comments in the comment box (off = blank, and no waiting
@@ -2533,7 +2540,7 @@ function loadSavedSettings() {
 // and default above, its line in loadSavedSettings, and its
 // wireSettingsToggle in wireSettingsPanel, below. To give it a key
 // too: one line in SETTING_KEYS ([#24]) - see TO ADD A KEY there.
-// Wires one settings-panel toggle switch: seeds its checked state
+// Wires one Settings menu switch: seeds its checked state
 // from the current value of a global var, and on change writes the
 // var + localStorage + (optionally) redraws the board so the effect
 // is visible immediately without waiting for the next move.
@@ -2572,10 +2579,10 @@ function positionSettingsPanel() {
 // Places a pop-up menu (the Settings menu, or the mode menu - [#2])
 // with its bottom edge on the board's bottom edge and its left edge
 // at `left` (in px from the window's left), kept on screen - at least
-// --gap (trainer.css [#2]) from its edges, like the page itself.
+// --gap (trainer.css [#1]) from its edges, like the page itself.
 // TOO TALL to fit between the top of the screen (less --gap) and the
 // board's bottom edge: it stops there and its rows scroll inside,
-// under its title, which stays put (trainer.css [#9]) - so it never
+// under its title, which stays put (trainer.css [#8]) - so it never
 // covers the buttons under the board. (If the board's bottom edge is
 // off the bottom of the screen, the screen's bottom edge is used
 // instead; and if the board has been scrolled almost off the top of
@@ -2583,7 +2590,7 @@ function positionSettingsPanel() {
 // screen's whole height.)
 var MENU_MIN_HEIGHT = 240;
 function placeMenu(panel, left) {
-  var gap = parseFloat(cssVar("--gap", "")) || 0; // (board.js [#2])
+  var gap = parseFloat(BOARD.cssVar("--gap", "")) || 0; // (board.js [#3])
   var boardRect = el("boardFrame").getBoundingClientRect();
   var bottom = Math.min(boardRect.bottom, window.innerHeight - gap);
   if (bottom - gap < MENU_MIN_HEIGHT) bottom = window.innerHeight - gap;
@@ -2669,7 +2676,8 @@ function wireSettingsPanel() {
  * object:
  *   ENGINE.init() ............ once, from boot
  *   ENGINE.positionChanged() . the board position changed
- *   ENGINE.drawArrows() ...... from renderMiniBoard
+ *   ENGINE.drawArrows() ...... while the board is painted
+ *                              (overlay.js [#1])
  *   ENGINE.shutDown() ........ Practice on / nothing loaded (turns
  *                              Engine and Threat off; Stockfish stays
  *                              loaded, idle)
@@ -2755,7 +2763,7 @@ function wireUI() {
     // advanced yet and its target IS currentPly + 1 - so a click here
     // just snaps that in-flight animation straight to completion
     // instead of restarting a fresh one on top of it.
-    navNext(BOARD.isAnimating());
+    navNext(OVERLAY.isAnimating());
   });
   // >> - or Next at the end of a line ([#6]). On pointerup
   // (bindTap, [#11]): it turns into Next in the middle of a gesture.
@@ -2804,7 +2812,7 @@ function wireUI() {
   document.addEventListener("pointerdown", function (e) {
     if (el("promoPicker").classList.contains("hidden")) return;
     if (e.target.closest && e.target.closest(".promotion-piece")) return;
-    BOARD.closePromoPicker();
+    TOUCH.closePromoPicker();
   }, true);
   // the mode button opens the mode menu ([#2])
   el("btnListMode").addEventListener("click", openModeMenu);
@@ -2887,7 +2895,7 @@ function togglePractice() {
  *   b .................... Settings > Show move annotations on / off
  *                          ("b" for badges) - the badges, and the
  *                          chapter's arrows and circles with them
- *                          (board.js [#3], [#6]). Not the engine's
+ *                          (overlay.js [#2], [#4]). Not the engine's
  *                          arrows - that's "a".
  *   i .................... Settings > Show chapter name on / off ("i"
  *                          for ID) - the names in the Chapter
@@ -2955,11 +2963,11 @@ var SETTING_KEYS = {
 // flips which switch. Made from SETTING_KEYS, once, at boot
 // (wireKeyboardShortcuts), so the menu can never show a key that
 // isn't wired, or miss one that is. Its look and place: .key-hint in
-// trainer.css [#9]. (It's inside the row's <label>, so tapping it
+// trainer.css [#8]. (It's inside the row's <label>, so tapping it
 // flips the switch too, like the rest of the row.)
 function showSettingKeyHints() {
   Object.keys(SETTING_KEYS).forEach(function (key) {
-    var row = el(SETTING_KEYS[key]).closest(".settings-row");
+    var row = el(SETTING_KEYS[key]).closest(".menu-row");
     var sw = row && row.querySelector(".switch");
     if (!sw) return;
     var hint = document.createElement("span");
@@ -3046,7 +3054,7 @@ function wireKeyboardShortcuts() {
         // Mid-slide, this snaps the opponent's move to its end
         // instead of starting a new animation on top of it (same as
         // btnNext).
-        navNext(BOARD.isAnimating());
+        navNext(OVERLAY.isAnimating());
         break;
       case "p":
         keyEvent.preventDefault();
@@ -3106,7 +3114,13 @@ function boot() {
   if (!checkExternalFiles()) return;
   initGameState();
   loadSavedSettings();
-  BOARD.init();
+  // The board: its saved size first, so the first paint is already
+  // that size (touch.js [#4]); then the shared board, with what's
+  // drawn over it (overlay.js [#1]); then taps, drags and the
+  // resize grip (touch.js [#3], [#4]).
+  TOUCH.restoreSize();
+  OVERLAY.init();
+  TOUCH.init();
   wireUI();
   wireKeyboardShortcuts();
   applyShowAltBox();
@@ -3167,8 +3181,8 @@ document.addEventListener("DOMContentLoaded", boot);
 function stopGameplay() {
   cancelPause();
   hideNoteGate();
-  BOARD.stopAnimation();
-  BOARD.closePromoPicker();
+  OVERLAY.stopAnimation();
+  TOUCH.closePromoPicker();
   ENGINE.shutDown();
   EXPLORER.shutDown();
   el("settingsBackdrop").classList.add("hidden");

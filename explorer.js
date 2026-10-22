@@ -147,8 +147,8 @@
  *   RULES ........................... rules.js (positions, moves)
  * and the page markup: #btnExplorer (shows on / off), #explorerBox,
  * #explorerStatus and #explorerTable. The CSS is in trainer.css: the
- * table in [#12], with the move list it sits under (the explorer
- * button's is [#7]).
+ * table in [#11], with the move list it sits under (the explorer
+ * button's is [#6]).
  *
  * INDEX
  *   [#1]  SETTINGS ............. which games, the pace
@@ -763,7 +763,7 @@ function fillTable(table, data, over) {
   table.textContent = "";
   var head = document.createElement("div");
   head.className = "ex-row ex-head";
-  // "Games" heads both the share and the count (trainer.css [#12])
+  // "Games" heads both the share and the count (trainer.css [#11])
   ["Move", "Games", "White / Draw / Black"].forEach(function (t) {
     var s = document.createElement("span");
     s.textContent = t;

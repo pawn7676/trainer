@@ -60,54 +60,64 @@ so you only load a file again after a rebuild (or a browser reset).
 
 ### The trainer page — keep all of these in one folder
 
-All but two: `rules.js` and `pieces.js` are shared with other
-projects, so there's just one copy of each, in a folder of its own
-called `shared`, next to the trainer's folder:
+All but the board, the pieces, the chess rules and the font: those
+are shared with other projects, so there's just one copy of each, in
+a folder of its own called `shared`, next to the trainer's folder:
 
 ```
 (the folder that holds them all)
   shared/rules.js
   shared/pieces.js
+  shared/board.js
+  shared/board.css
+  shared/theme.css
+  shared/NotoSans.ttf
+  shared/NotoSans-OFL.txt
   trainer/        (everything else below)
   (any other projects)
 ```
 
 Both pages load `rules.js` as `../shared/rules.js` (`..` = up one
-folder), and the trainer page loads `pieces.js` the same way. So
+folder), and the trainer page loads the others the same way. So
 wherever the trainer is run or put online, `shared` has to sit
 next to it, and be reachable from it: when running it locally, open
 or serve the folder that holds them all, not `trainer` itself. A
-change to either file reaches every project at once, so try each one
+change to any of them reaches every project at once, so try each one
 after changing it.
 
 | File | What it is |
 |---|---|
 | `trainer.html` | The trainer itself: the file index, the page markup, and the script - which chapter is open, the lists, reading the files from the browser, playing through a chapter, practice, the comment box, the move list, settings, buttons, keys, start-up. |
 | `data.html` | The data page, opened on its own: takes your Lichess token, loads the three `.jsonl` files into the browser for the trainer, shows how old the Lichess data is, gathers what's missing or stale, and saves `explorer_data.jsonl`. |
-| `trainer.css` | Every style on the page. All colors, fonts and sizes are settings near the top (`:root`). |
+| `trainer.css` | The trainer's own styles, on top of the shared `theme.css` and `board.css`: its layout, its sizes, and the colors only the trainer uses. Those are settings near the top (`:root`). |
+| `theme.css` | **In `../shared/`, not this folder** (see above). The house style every project shares: the font (it loads Noto Sans, and sets `--font-family`), the house colors (`--bg`, `--panel`, `--border`, `--text`, `--accent` and the rest), and the look of buttons, dropdowns, the on/off switches and the pop-up menus (the Settings and Mode menus). |
+| `board.css` | **In `../shared/`, not this folder** (see above). The board's look: its colors, and the font of its letters and numbers. |
 | `errors.js` | Error messages. Anything wrong with the page itself (a missing file, a script error, a mistyped CSS color) shows **in the comment box**, and the page **stops** until it's reloaded. (Stockfish not running, or Lichess not answering, isn't a page error.) |
 | `rules.js` | **In `../shared/`, not this folder** (see above). Chess rules: legal moves, move names (SAN), check and mate, how the game ends at a position, and positions as FENs - by python-chess's own rules, so the trainer and the build always agree. |
 | `filter.js` | Reads the two `.jsonl` files and builds the lists: spaced repetition, today's random openings and puzzles, and the Library's. |
 | `pieces.js` | **In `../shared/`, not this folder** (see above). Piece artwork (the cburnett set). Swap the 12 drawings to change the piece set - in every project at once. |
-| `board.js` | The chessboard: drawing it (pieces, badges, arrows and circles, coordinates), tapping and dragging pieces, piece slides, the resize grip. |
+| `board.js` | **In `../shared/`, not this folder** (see above). The chessboard itself: the squares and their tints, the check glow, the letters and numbers, the material count and the pieces - kept sharp at any size. |
+| `overlay.js` | What's drawn over the board: badges, the chapter's arrows and circles, pieces sliding, a wrong move parking and sliding home. It also tells the board what to show. |
+| `touch.js` | Your finger on the board: tapping and dragging pieces, the promotion picker, the resize grip. |
 | `icons.js` | The small interface icons. |
-| `NotoSans.ttf` | The page font. Without it the page falls back to system fonts. |
-| `icon.png` | The icon for the Home Screen (and the browser tab): a plain, opaque 180x180 square - iPadOS rounds the corners itself. Optional. iPadOS keeps the icon it saw when the page was added to the Home Screen, so to see a new one, add the page again. |
+| `NotoSans.ttf` | **In `../shared/`, not this folder** (see above). The font, loaded by `theme.css`. Without it the page falls back to system fonts. |
 | `engine.js` | Stockfish analysis, behind the Engine and Threat buttons. Its settings are at the top of the file. |
 | `explorer.js` | The trainer's Lichess side: the opening explorer, collecting the Lichess data for the line you're studying in the background, and keeping every answer in the browser. |
 | `stockfish-19-lite-single.js` + `.wasm` | Stockfish, Lite (about 1 MB) - the one the engine uses. |
 | `stockfish-19-single.js` + `.wasm` | Stockfish, Full (about 94 MB). Optional — only with `ENGINE_TYPE` set to `"full"` at the top of `engine.js`. |
 | `LICENSE` | The GNU General Public License, version 3 - the license of the trainer's own code, and of Stockfish. |
 | `CREDITS.md` | Who made what - Stockfish, the pieces, the font, the icons, Lichess, python-chess, chess.js - and their licenses. |
-| `NotoSans-OFL.txt` | The font's license, which has to go wherever `NotoSans.ttf` goes. |
+| `NotoSans-OFL.txt` | **In `../shared/`, beside the font** (see above). The font's license, which has to go wherever `NotoSans.ttf` goes. |
 | `index.html` | Sends the site's short address (the trainer's folder, without `trainer.html` on the end) on to `trainer.html`. Only needed on a web host that would otherwise show this README there. |
 
 The trainer stops with an error if any of its files but the Stockfish
-ones, the three license files, `icon.png` and `index.html` is missing - or if
-`rules.js` or `pieces.js` isn't in `../shared/`. When the page is
-opened from a local server, the engine saves its own copy of the
-Stockfish files in the browser while that server is running, so it
-keeps working if the server stops.
+ones, `LICENSE`, `CREDITS.md` and `index.html` is missing - or if
+`rules.js`, `pieces.js`, `board.js`, `board.css` or `theme.css` isn't
+in `../shared/`. (Not the font file itself: without it the page uses
+system fonts.)
+When the page is opened from a local server, the engine saves its
+own copy of the Stockfish files in the browser while that server is
+running, so it keeps working if the server stops.
 
 ### The scripts (Python 3 + python-chess: `pip install chess`)
 
@@ -272,7 +282,7 @@ pruned copy is a smaller backup.
 
 That's on purpose: every error stops the page. The message in the
 comment box says what's wrong - usually a file missing from the folder
-(or `rules.js` or `pieces.js` from `../shared/`, or `trainer` opened
+(or one of the shared files from `../shared/`, or `trainer` opened
 on its own instead of the folder that holds it and `shared`), or a
 line of a
 `.jsonl` file that can't be read
@@ -632,29 +642,31 @@ Written by the data page's **Save** button (`data.html`
 
 | To change… | Look in |
 |---|---|
-| Colors, fonts, board size, layout spacing | `trainer.css` — the settings in `:root` (all colors live there) |
+| Colors, fonts, board size, layout spacing | `trainer.css` — the settings in `:root`: the trainer's own colors, sizes and spacing |
+| The house colors - the page, the boxes and buttons, their edges, the text, the blue of a lit button or switch, the dimmer behind a menu, the error color | `../shared/theme.css` — `--bg`, `--panel`, `--border`, `--text`, `--text-muted`, `--bright`, `--accent`, `--accent-bright`, `--backdrop`, `--panel-shadow`, `--error`. A change reaches every project at once. |
+| The look of buttons, dropdowns, the switches and the pop-up menus | `../shared/theme.css` — CONTROLS and POP-UP MENUS. The trainer's own parts of its menus (the folder button, the key hints, the date arrows, the mode rows) are in `trainer.css`, MENUS. |
+| The board's colors (squares, last move, selected square, check glow, letters and numbers) and its letters' font | `../shared/board.css` - one setting each. A change reaches every project at once. |
 | Height of the buttons and dropdowns | Worked out, not set: one line of the text font plus the boxes' padding and border (`--one-line-height` in `trainer.css` `:root`) - change those and it follows |
 | Size of the << < > >> symbols (they stay centered at any size) | `trainer.css` — `--nav-glyph-size` (3rem) in `:root` |
-| The space between everything: the board, the boxes, the buttons, the chapter row - and around the page at the screen's edges, where the Settings and Mode menus stop too | `trainer.css` — `--gap` (10px) in `:root` - one size for all of them (the Home Screen web app adds `--top-inset` at the top - below) |
-| The extra space at the top of the Home Screen web app, so the iPadOS status bar's blur doesn't cover the board (none in a Safari tab) | `trainer.css` — `--top-inset` in `:root`: 0px, and 24px in its `&.web-app` rule. The page tells the two apart by itself: a few lines at the top of `trainer.html` add the class `web-app` when iPadOS says it was opened from the Home Screen (`navigator.standalone`) |
-| The boxes: the five beside the board, the chapter row's dropdowns and color square - the space inside them, their border, their rounded corners (the buttons share the border and corners) | `trainer.css` — `--box-pad-y` (above and below, 8px), `--box-pad-x` (either side, 16px), `--box-border-width` (1px), `--box-radius` (4px) in `:root` - one set for all of them |
-| The text font - the comment box, the ALT box, the dropdowns, the Settings and Mode menus, and the error messages | `trainer.css` — `--font-family` (Noto Sans), `--text-font-size` (1.35rem), `--text-font-weight`, `--text-line-height` in `:root` |
-| How big and small the board can get | Nothing to set: no button under it may get narrower than its icon (`board.js` [#13]) |
+| The space between everything: the board, the boxes, the buttons, the chapter row - and around the page at the screen's edges, where the Settings and Mode menus stop too | `trainer.css` — `--gap` (10px) in `:root` - one size for all of them (the web-app version adds `--top-inset` at the top) |
+| The boxes: the five beside the board, the chapter row's dropdowns and color square - the space inside them, their border, their rounded corners (the buttons share the border and corners) | `trainer.css` — `--box-pad-y` (above and below, 8px) and `--box-pad-x` (either side, 16px) in `:root`; the border and corners are the house's, `--box-border-width` (1px) and `--box-radius` (4px) in `../shared/theme.css` |
+| The text font - the comment box, the ALT box, the dropdowns, the Settings and Mode menus, and the error messages | Which font: `../shared/theme.css` — `--font-family` (Noto Sans; a change reaches every project at once). Its size and look: `trainer.css` — `--text-font-size` (1.35rem), `--text-font-weight`, `--text-line-height` in `:root` |
+| How big and small the board can get | Nothing to set: no button under it may get narrower than its icon (`touch.js` [#4]) |
 | The layout on narrow screens (under 820px) | `trainer.css` — the `@media (max-width: 820px)` block at the end |
 | How error messages look | `trainer.css` — `#pageWarnings`, `#pageStopCover` |
-| On-board badges (!!, ?, #, S, D, eval symbols) | `board.js` — the `BADGE` settings (`BADGE.glyph` nudges each symbol inside its disc) |
+| On-board badges (!!, ?, #, S, D, eval symbols) | `overlay.js` — the `BADGE` settings (`BADGE.glyph` nudges each symbol inside its disc) |
 | Color of the game-ending badges (# checkmate, S stalemate, D draw) | `trainer.css` — `--game-end` in `:root` |
-| Arrows and circles (size, see-through-ness) | `board.js` — `ARROW` and `CIRCLE` (sizes) and `SHAPE_OPACITY` (both); their colors are `--shape-*` in `trainer.css` |
+| Arrows and circles (size, see-through-ness) | `overlay.js` — `ARROW` and `CIRCLE` (sizes) and `SHAPE_OPACITY` (both); their colors are `--shape-*` in `trainer.css` |
 | The font of the move list, the engine's lines and the explorer, their messages included | `trainer.css` — `--mono-font-family`, `--list-font-size`, `--list-line-height` in `:root` |
-| How dim a disabled button or dropdown is | `trainer.css` — `--disabled-opacity` in `:root` |
-| Coordinates and material count | `board.js` — `COORDS` (their size, and the gaps to the squares' edges); their font is `--board-coord-font-family` (Noto Sans, like Lichess) and `--board-coord-font-weight`, and their colors `--board-coord-on-light` (on a light square, #946f51) and `--board-coord-on-dark` (on a dark square, the light squares' color), all in `trainer.css` `:root` - Lichess's own. They're drawn under the pieces, as on Lichess. |
-| How sharp the board stays when you pinch-zoom far in, and how soon it sharpens again after a resize or a zoom | `board.js` — `BOARD_MAX_PX` (3200) and `RESOLUTION_WAIT_MS` (150 ms), under SHARPNESS in [#1] |
-| Red glow on a king in check | `board.js` — `CHECK_HALO` |
+| How dim a disabled button or dropdown is | `../shared/theme.css` — `--disabled-opacity` (a change reaches every project at once) |
+| Coordinates and material count | `../shared/board.js` [#6] — `COORDS` (their size, and the gaps to the squares' edges); their font is `--board-coord-font-family` (Noto Sans, like Lichess) and `--board-coord-font-weight`, and their colors `--board-coord-on-light` (on a light square, #946f51) and `--board-coord-on-dark` (on a dark square, the light squares' color), all in `../shared/board.css` - Lichess's own. They're drawn under the pieces, as on Lichess. A change reaches every project at once. |
+| How sharp the board stays when you pinch-zoom far in, and how soon it sharpens again after a resize or a zoom | `../shared/board.js` [#2] — `BOARD_MAX_PX` (3200) and `RESOLUTION_WAIT_MS` (150 ms). A change reaches every project at once. |
+| Red glow on a king in check | `../shared/board.js` [#5] — `CHECK_HALO` (its size); its colors are `--check-halo-*` in `../shared/board.css` |
 | Pause before the opponent's move, and how long a wrong move stays on the board | `trainer.html` — `PAUSE_MS` (one setting for both) |
 | How far a touch can move and still be a tap: on the board (any further starts dragging the piece), and on an engine line's move, an explorer move or the comment box (any further is a scroll) | `trainer.html` — `TAP_SLOP` (4px, one setting for all of them) |
 | How quick two taps must be to count as a double tap (which is then stopped from zooming) | `trainer.html` — `DOUBLE_TAP_MS` (350 ms) |
 | How long Next (`>>` at the end of a line) ignores taps after it appears | `trainer.html` — `NEXT_LOCK_MS` (half a second) |
-| How fast pieces slide (the opponent's reply, and every step with `<` / `>` in Practice and browse), or turning the slides off | `board.js` — `MOVE_ANIM_MS`; `ANIMATE_MOVES = false` for no slides at all |
+| How fast pieces slide (the opponent's reply, and every step with `<` / `>` in Practice and browse), or turning the slides off | `overlay.js` — `MOVE_ANIM_MS`; `ANIMATE_MOVES = false` for no slides at all |
 | Keyboard shortcuts - a new key, or a different one | `trainer.html` [#24] — its **TO ADD A KEY** steps. A key for a Settings switch is one line in `SETTING_KEYS` (it then works with the Settings menu open too, and shows as `[x]` next to its switch); any other key is a `case` in `wireKeyboardShortcuts`. Either way, a line in [#24]'s list and a row in the **Keyboard shortcuts** table above. |
 | The Settings switches' defaults | `trainer.html` — `showAnnotations`, `showComments`, `autoPractice` and the others, under SETTINGS |
 | The engine: Lite or Full, how many lines, the depth, its memory | `engine.js` — `ENGINE_TYPE`, `ENGINE_LINES`, `ENGINE_DEPTH`, `ENGINE_HASH` at the top |
@@ -685,7 +697,8 @@ The trainer's own code is free software under the GNU General Public
 License, version 3 or later (`LICENSE`). Stockfish, the cburnett
 pieces, Noto Sans, the Feather, Lucide and Tabler icons, Lichess,
 python-chess and chess.js are credited in `CREDITS.md`, with their
-licenses. Keep `LICENSE`, `CREDITS.md` and `NotoSans-OFL.txt` with
-the trainer's files wherever they're published.
+licenses. Keep `LICENSE` and `CREDITS.md` with the trainer's files
+wherever they're published, and `NotoSans-OFL.txt` with the font in
+`shared`.
 
 The trainer is not affiliated with or endorsed by Lichess.

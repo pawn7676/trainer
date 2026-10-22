@@ -4,7 +4,8 @@ The trainer's own code is free software under the GNU General Public
 License, version 3 or later (GPL-3.0-or-later; the full text is in
 `LICENSE`). It's built with other people's work, listed here with
 their licenses. Wherever the trainer's files are published, keep this
-file, `LICENSE` and `NotoSans-OFL.txt` with them.
+file and `LICENSE` with them - and `NotoSans-OFL.txt` with the font,
+in the `shared` folder next to the trainer's.
 
 The trainer is not affiliated with or endorsed by Lichess
 (lichess.org).
@@ -14,7 +15,10 @@ The trainer is not affiliated with or endorsed by Lichess
 ## The trainer's own code
 
 Every file not listed below - the two pages (`trainer.html`,
-`data.html`) and their scripts and CSS.
+`data.html`) and their scripts and CSS, and the board and the chess
+rules and the shared house style, which the trainer loads from the
+`shared` folder next to its own (`board.js`, `board.css`, `rules.js`,
+`theme.css`).
 
 Copyright (C) 2026 pawn7676
 
@@ -67,16 +71,18 @@ Source:
 
 ## Font - Noto Sans
 
-`NotoSans.ttf`: Noto Sans, Copyright 2022 The Noto Project Authors.
+`NotoSans.ttf` (in the `shared` folder next to the trainer's, one copy
+for every project, loaded by `theme.css`): Noto Sans, Copyright 2022
+The Noto Project Authors.
 SIL Open Font License 1.1 - the full text, with its copyright notice,
-is in `NotoSans-OFL.txt`.
+is in `NotoSans-OFL.txt`, beside it.
 [fonts.google.com/noto/specimen/Noto+Sans](https://fonts.google.com/noto/specimen/Noto+Sans)
 
 ---
 
 ## Icons
 
-In `icons.js`, except the checkmark, which is in `board.js`. Each one
+In `icons.js`, except the checkmark, which is in `overlay.js`. Each one
 says where it's from in its comment there. Icons not listed are the
 trainer's own.
 
@@ -89,7 +95,7 @@ trainer's own.
 | jigsaw piece (puzzles) | Lucide "puzzle" | ISC - as above |
 | computer chip (Engine button) | [Tabler Icons](https://tabler.io/icons) "cpu", enlarged | MIT - Copyright (c) 2020-2026 Paweł Kuna |
 | shuffle arrows (random openings) | Tabler Icons "arrows-shuffle" | MIT - as above |
-| checkmark (a solved puzzle, `board.js`) | Tabler Icons "check" | MIT - as above |
+| checkmark (a solved puzzle, `overlay.js`) | Tabler Icons "check" | MIT - as above |
 
 The license texts, as the MIT and ISC licenses ask:
 
