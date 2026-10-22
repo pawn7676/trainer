@@ -543,7 +543,7 @@ button.ctrl.active { background: var(--accent); border-color: var(--accent-brigh
   background: var(--bright);
 }
 #libraryColor.black::after { background: var(--badge-shadow); }
-#chapterRow select:focus { outline: none; }
+/* (No focus ring on the dropdowns: the house's, in theme.css.) */
 /* No up/down arrows at the right of the dropdowns: Safari's own,
    which don't match the page's look. A tap anywhere on the dropdown
    opens it, as before. */
