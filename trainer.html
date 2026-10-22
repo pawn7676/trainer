@@ -145,6 +145,16 @@
       [#25] BOOT & STOP .......... start-up; what an error halts
     ============================================================ -->
 
+<!-- The home-screen web app: when iPadOS says the page was opened
+     from its Home Screen icon (navigator.standalone - false in a
+     Safari tab), the page gets the class "web-app", which gives it
+     room for the iPadOS status bar at the top (--top-inset in
+     trainer.css [#1]). Here, before the stylesheets, so the room is
+     there from the first frame. -->
+<script>
+if (navigator.standalone) document.documentElement.classList.add("web-app");
+</script>
+
 <!-- the house style (the font, the house colors, buttons, menus...)
      and the board's look, from the "shared" folder next to this
      page's folder (one copy for every project) - then the trainer's
